@@ -1,0 +1,6 @@
+# Zugangsdaten und Laufzeitdaten gehören nie ins Repository
+/config/config.php
+/storage/*
+!/storage/.htaccess
+node_modules/
+tailwind/node_modules/

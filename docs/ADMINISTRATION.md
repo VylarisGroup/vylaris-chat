@@ -1,0 +1,110 @@
+# Administration
+
+Die Administration erreichst du als Administrator über dein Profilmenü unten links im Messenger („Administration“) oder unter `/admin`.
+
+## Übersicht
+
+Kennzahlen (Benutzer, Gruppen, Nachrichten, Dateien, offene Meldungen), Systemzustand (PHP, HTTPS, SMTP, Speicherplatz, letzte Bereinigung, Backup, 2FA der Administratoren) und die letzten Ereignisse.
+
+## Benutzer
+
+- **Einladen:** Person erhält einen Link (7 Tage gültig) und legt Name und Passwort selbst fest. Die E-Mail-Adresse gilt dadurch als bestätigt. Ohne funktionierendes SMTP zeigt die Seite den Link zur manuellen Weitergabe.
+- **Konto anlegen:** Ohne Anfangspasswort erhält die Person eine E-Mail, um eines zu setzen (empfohlen). Mit Anfangspasswort musst du es sicher übermitteln.
+- **Verwalten:** Name, E-Mail, Rolle ändern; Passwort-Link senden; Bestätigungs-Mail erneut senden oder manuell bestätigen; alle Sitzungen beenden; deaktivieren/aktivieren; löschen.
+- **Löschen = Anonymisieren:** Name, E-Mail und Bild werden entfernt, Sitzungen beendet. Bisherige Nachrichten bleiben als „Gelöschter Benutzer“ erhalten (DSG: Personenbezug wird entfernt).
+- **Schutzregeln:** Du kannst dich nicht selbst deaktivieren, löschen oder herabstufen. Der letzte Administrator kann weder deaktiviert noch gelöscht noch herabgestuft werden.
+
+## Gruppen
+
+Liste aller Gruppen mit Mitgliederzahl und Nachrichtenanzahl. **Es werden keine Nachrichten angezeigt.** In der Detailansicht kannst du in Notfällen (Gruppe ohne aktiven Administrator) ein bestehendes Mitglied zum Gruppenadministrator ernennen. Die Ernennung wird im Audit-Log festgehalten und der Gruppe als Systemhinweis angezeigt.
+
+## Gemeldete Nachrichten
+
+Mitglieder können fremde Nachrichten melden. Du siehst ausschliesslich die gemeldete Einzelnachricht mit Begründung, nicht die übrige Unterhaltung. Jede Einsicht wird protokolliert. Du kannst die Nachricht entfernen (Inhalt und Anhänge werden gelöscht) oder die Meldung ablehnen.
+
+## Einstellungen
+
+- **Organisation:** Firmenname, Akzentfarbe (zu helle Farben werden abgelehnt, damit weisse Schrift lesbar bleibt), Logo, Selbstregistrierung (aus Standardeinstellung), erlaubte E-Mail-Domains, E-Mail-Bestätigung.
+- **System:** maximale Dateigrösse (begrenzt durch PHP-Limits des Servers), Bearbeitungsfrist für Nachrichten, Aufbewahrungsfristen für Nachrichten und Protokoll, E-Mail-Benachrichtigungen insgesamt.
+- **SMTP:** Server, Port, Verschlüsselung, Zugangsdaten (Passwort wird mit dem Anwendungsschlüssel verschlüsselt gespeichert). „Testen“ prüft die Verbindung oder sendet eine Testmail, ohne vorher zu speichern.
+- **Wartung:** Bereinigung manuell auslösen.
+
+### Aufbewahrung
+
+Mit „Nachrichten aufbewahren (Tage)“ werden ältere Nachrichten samt Dateien endgültig gelöscht (0 = nie). Informiere die Mitarbeitenden über die Regel (Datenschutzerklärung). Das Protokoll wird nach der eingestellten Frist (Standard 365 Tage) gelöscht.
+
+## Sicherheit
+
+Unter **Sicherheit**: 2FA für Administratoren vorschreiben (wer keine hat, wird nach der Anmeldung zur Einrichtung geleitet), Passwort-Ablauf (Tage), Sperre nach Fehlversuchen (Anzahl/Minuten), Liste **gesperrter Konten** mit „Sperre aufheben“, Kennzahlen zu 2FA und Fehlversuchen sowie die Konfiguration der **Einmalanmeldung (OpenID Connect)**. Richte zuerst dein eigenes 2FA ein, bevor du es vorschreibst.
+
+Pro Person (Benutzer → Verwalten): *Sperre aufheben*, *Passwortwechsel verlangen* (bei der nächsten Aktion), *2FA zurücksetzen* (bei Geräteverlust).
+
+**SSO einrichten (OIDC):** Beim Anbieter eine „Web“-Anwendung registrieren, als Weiterleitungs-URL die auf der Seite angezeigte Adresse eintragen, dann Issuer-URL, Client-ID und Secret eintragen (Entra ID: `https://login.microsoftonline.com/<Tenant>/v2.0`). Bestehende Konten werden über die bestätigte E-Mail-Adresse verknüpft; „automatisch anlegen“ gilt nur für die genannten Domains.
+
+## Betrieb
+
+**Betrieb** zeigt den Zustand (Datenbank, Speicherplatz, Wartung, Backup, Aufträge, Fehler, HTTPS), die Fehlerüberwachung (Alarm-Mail ab *n* Fehlern in *m* Minuten, höchstens eine pro Stunde; benötigt SMTP) und die letzten Log-Einträge. Für externe Überwachung liefert `/health` nur `ok` oder `fail`; `php bin/health.php` endet bei Problemen mit Exit-Code 1.
+
+**Echtzeit:** Polling (Standard) oder Server-Sent Events. SSE ist schneller, belegt aber pro offenem Tab einen PHP-Prozess. **Push-Benachrichtigungen:** ein Schalter erzeugt die VAPID-Schlüssel; Nutzende aktivieren Push unter Einstellungen → Benachrichtigungen. Braucht HTTPS. Die App lässt sich zusätzlich als PWA installieren.
+
+Empfohlene Cron-Einträge: `*/15 * * * * php bin/cleanup.php` (Wartung), `* * * * * php bin/worker.php` (Hintergrundaufträge, optional), `30 2 * * * php bin/backup.php …` (Backup).
+
+## Protokoll (Audit-Log)
+
+Anmeldungen (auch fehlgeschlagene und blockierte), Registrierungen, Passwortänderungen, Sitzungsereignisse, Konto- und Gruppenänderungen durch Administratoren, Einsicht in Meldungen, gemeldete und moderierte Nachrichten, Einstellungsänderungen. Filter nach Aktion, Benutzer und Zeitraum. Das Protokoll enthält keine Nachrichteninhalte und keine Passwörter.
+
+## Betrieb
+
+### Datensicherung (Backup)
+
+Unter **Backup** erstellst du ein ZIP mit Datenbank-Dump (`database.sql`), allen Dateien aus `storage/` (Uploads, Profilbilder, Logo) und `meta.json` (Prüfsumme). Optional mit Passphrase (AES-256) und mit `config/config.php`.
+
+* **Ein Backup enthält alle Nachrichten im Klartext.** Deshalb liegt es nur auf dem Server (`storage/backups/`, nicht öffentlich). Den **Download im Browser** schaltest du bewusst unter „Automatisierung und Aufbewahrung“ ein (verlangt dein Passwort, wird protokolliert). Standard: aus, damit Administratoren keine Nachrichteninhalte erhalten. Hole Backups per SFTP oder über das Hosting-Panel.
+* **Automatisch:** Einstellung „alle … Tage“ (läuft bei der Wartung im Hintergrund) oder per Cron: `30 2 * * * php /pfad/bin/backup.php --passphrase-file=/pfad/pass.txt --config`. Es werden die letzten *n* Backups behalten.
+* **Prüfen:** Der Knopf „Prüfen“ (bzw. `php bin/restore.php datei.zip`) kontrolliert Lesbarkeit und Prüfsumme.
+* **Wiederherstellen** nur per Kommandozeile: `php bin/restore.php storage/backups/backup-….zip --yes` (überschreibt Datenbank-Tabellen und Dateien; `config.php` wird nie automatisch überschrieben). Teste das regelmässig auf einer Kopie.
+* **config.php nicht vergessen:** Sie enthält den Schlüssel `app.key`. Ohne ihn lassen sich SMTP-Passwort, SSO-Secret und 2FA-Geheimnisse nicht entschlüsseln. Bewahre sie getrennt und geschützt auf.
+* Gelöschte Daten können bis zum Ablauf der Aufbewahrung noch in Backups liegen (steht in der Datenschutzerklärung).
+
+### Updates
+
+Siehe [INSTALLATION.md](INSTALLATION.md#update).
+
+### Protokolle
+
+PHP-/Anwendungsfehler stehen in `storage/logs/`. Fehlermeldungen an Benutzer enthalten keine internen Details.
+
+### Passwort vergessen (Administrator)
+
+Über „Passwort vergessen“ auf der Anmeldeseite. Sind alle Administratoren gesperrt und SMTP nicht nutzbar, kann der Hoster per Datenbank ein neues Passwort setzen (`password_hash` mit PHP erzeugen und in `users.password_hash` eintragen).
+
+## Datenschutz (DSG, Schweiz)
+
+Der Messenger unterstützt datenschutzfreundlichen Betrieb: Datensparsamkeit (keine Nachrichten in E-Mails, keine Link-Vorschau mit externen Abrufen), Zugriff nur für Mitglieder, nachvollziehbares Audit-Log, einstellbare Aufbewahrung, Löschung/Anonymisierung von Konten, Auskunft über die gespeicherten Daten über den Administrator (Datenbank). Als Betreiber bleibst du für Rechtsgrundlagen, Verzeichnis der Bearbeitungstätigkeiten, Information der Mitarbeitenden und Auftragsverarbeiter-Verträge (Hoster, SMTP-Anbieter) selbst verantwortlich.
+
+
+## Datenschutz und Betroffenenrechte
+
+Unter **Datenschutz** hinterlegst du die Angaben des Verantwortlichen (erscheinen auf `/privacy`), bearbeitest Anfragen (Frist 30 Tage) und erfasst Anfragen, die per E-Mail eingehen. In **Benutzer > Verwalten** findest du pro Person: Datenauszug (nur Metadaten), Status und Profilbild entfernen, Bearbeitung einschränken bzw. aufheben und Konto löschen (wahlweise inkl. aller Nachrichten und Dateien). Details und Vorlagen: `DATENSCHUTZ.md`. Das **Prüfpaket** (Datenschutz → Prüfpaket) bündelt für die rechtliche Prüfung: Checkliste (automatische und manuelle Punkte), das automatisch erzeugte Verzeichnis der Bearbeitungstätigkeiten (als Markdown herunterladbar) und einen Prüfvermerk, der meldet, wenn sich Angaben seit der Prüfung geändert haben. Es ersetzt keine Rechtsberatung.
+
+## Funktionstest (Systemtest)
+
+Im Admin-Dashboard zeigt die Kachel **Funktionstest** das Ergebnis des letzten Laufs; unter **Systemtest** siehst du alle Prüfungen mit Details. Mit "Tests ausführen" (oder `php bin/selftest.php` auf der Kommandozeile, Exit-Code 1 bei Fehlern) startest du einen neuen Lauf. Er prüft:
+
+* **Umgebung:** PHP-Version, Erweiterungen, Schlüssel, Datenbank (Zeit, Schema, Migrationen), Speicherverzeichnisse, HTTPS, Upload-Limits, SMTP, Bereinigung, Datenschutz-Angaben.
+* **Sicherheit:** Passwortrichtlinie, Hashing, Verschlüsselung, CSRF, Rate-Limits, Dateinamen, Sicherheits-Header.
+* **Routen:** Alle Routen verweisen auf vorhandenen Code, jede zustandsändernde Route ist CSRF-geschützt, Admin-, API- und Medienrouten sind geschützt.
+* **Anwendungslogik:** Chat, Zugriffsschutz (IDOR), Suche, Reaktionen, Gruppen, Melden, Dateien und alle Datenschutz-Funktionen.
+* **2FA, SSO, Push, Aufträge:** TOTP-Testvektor und Replay-Schutz, Wiederherstellungscodes, OIDC-Prüfung, Push-Allowlist, Export-Job.
+* **Backup, Betrieb, Prüfpaket:** Backup erstellen/prüfen/Manipulation erkennen, Verschlüsselung, Download-Schutz, Zustandsprüfungen, PWA-Dateien, Verzeichnis und Checkliste.
+
+Die Logiktests verwenden Testkonten in einer Datenbank-Transaktion, die am Ende zurückgerollt wird. Es bleiben keine Daten zurück und es werden keine E-Mails versendet. Hinweise (gelb) sind Empfehlungen, Fehler (rot) sind Funktionsstörungen.
+
+
+## Aktualisierung
+
+Unter *Administration → Aktualisierung* holst du Updates aus einem GitHub-Repository. Details: [UPDATE.md](UPDATE.md).
+
+## Lizenz
+
+Unter *Administration → Lizenz* trägst du den Lizenzschlüssel ein, siehst Status, Plätze und freigeschaltete Funktionen. Details: [LIZENZ.md](LIZENZ.md).

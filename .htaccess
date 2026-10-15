@@ -1,0 +1,8 @@
+# Falls der Document Root auf diesen Ordner zeigt (statt auf public/):
+# Alle Anfragen werden intern an public/ weitergereicht. Besser ist es, den Document Root auf public/ zu setzen.
+Options -Indexes
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^$ public/ [L]
+  RewriteRule ^(?!public/)(.*)$ public/$1 [L]
+</IfModule>
