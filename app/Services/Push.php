@@ -264,6 +264,18 @@ final class Push
         Deferred::add(static fn () => self::sendNow($userId, $payload));
     }
 
+    /** @return list<string> Für Push benötigte, aber nicht nutzbare PHP-Funktionen. */
+    public static function missingFunctions(): array
+    {
+        $out = [];
+        foreach (['curl_init', 'curl_multi_init', 'curl_multi_exec', 'curl_multi_select', 'curl_multi_getcontent', 'openssl_pkey_derive', 'openssl_pkey_new', 'openssl_sign', 'openssl_encrypt', 'hash_hkdf', 'random_bytes'] as $f) {
+            if (!function_exists($f)) {
+                $out[] = $f;
+            }
+        }
+        return $out;
+    }
+
     /**
      * Sendet parallel an alle Geräte der Person.
      * @return list<array{id:int,ua:string,status:int,ok:bool,error:string,encrypted:bool}>
@@ -271,6 +283,13 @@ final class Push
     public static function sendDetailed(int $userId, ?array $payload = null): array
     {
         $payload ??= self::payload($userId, 'Neue Aktivität im Messenger');
+        $missing = self::missingFunctions();
+        if ($missing !== []) {
+            // Manche Hoster (z. B. KeyHelp mit eingeschränkter PHP-Konfiguration) sperren Funktionen über disable_functions.
+            $msg = 'PHP-Funktionen gesperrt oder fehlen: ' . implode(', ', $missing) . ' (disable_functions bzw. Erweiterung curl/openssl prüfen).';
+            log_error('Push: ' . $msg);
+            return array_map(static fn (array $x): array => ['id' => (int) $x['id'], 'ua' => (string) $x['user_agent'], 'status' => 0, 'ok' => false, 'error' => $msg, 'encrypted' => false], Database::all('SELECT id, user_agent FROM push_subscriptions WHERE user_id = ?', [$userId]));
+        }
         $subs = Database::all('SELECT id, endpoint, p256dh, auth_secret, fail_count, user_agent FROM push_subscriptions WHERE user_id = ?', [$userId]);
         $mh = curl_multi_init();
         $jobs = [];

@@ -78,7 +78,12 @@ final class AdminOperationsController extends Controller
         if (Push::countFor((int) $admin['id']) === 0) {
             return $this->back(null, 'Auf deinen Geräten ist Push noch nicht eingeschaltet. Aktiviere es zuerst unter Einstellungen → Benachrichtigungen (auf dem iPhone muss die App dafür zum Home-Bildschirm hinzugefügt sein).');
         }
-        $res = Push::sendDetailed((int) $admin['id'], Push::payload((int) $admin['id'], 'Test: Push-Benachrichtigungen funktionieren.'));
+        try {
+            $res = Push::sendDetailed((int) $admin['id'], Push::payload((int) $admin['id'], 'Test: Push-Benachrichtigungen funktionieren.'));
+        } catch (\Throwable $e) {
+            log_error('Push-Test: ' . $e::class . ': ' . $e->getMessage() . ' @ ' . basename($e->getFile()) . ':' . $e->getLine());
+            return $this->back(null, 'Push-Test fehlgeschlagen: ' . $e->getMessage() . ' (' . basename($e->getFile()) . ':' . $e->getLine() . ')');
+        }
         $ok = count(array_filter($res, static fn (array $x): bool => $x['ok']));
         $fails = array_map(static fn (array $x): string => '«' . ($x['ua'] !== '' ? mb_substr($x['ua'], 0, 40) : 'Gerät ' . $x['id']) . '»: ' . $x['error'], array_filter($res, static fn (array $x): bool => !$x['ok']));
         if ($ok === count($res)) {

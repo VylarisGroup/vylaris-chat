@@ -1,5 +1,11 @@
 # Änderungen
 
+## 1.8.1 – Push-Test auf eingeschränkten Hostings (KeyHelp)
+
+* Der Push-Test liefert bei Problemen statt eines Fehlers 500 eine Meldung im Klartext (inkl. Datei/Zeile).
+* Gesperrte oder fehlende PHP-Funktionen (`disable_functions`, curl/openssl) werden erkannt und benannt.
+* Migrationen sind nach einem teilweise angewendeten Lauf wiederholbar (vorhandene Spalten sind kein Fehler mehr).
+
 ## 1.8.0 – Push-Benachrichtigungen repariert
 
 * **Verschlüsselte Push-Nachrichten (RFC 8291) mit korrekter VAPID-Signatur:** iOS (Home-Bildschirm-App ab 16.4) und Android erhalten Hinweise zuverlässig, auch wenn die App geschlossen ist. Der Service Worker zeigt bei jedem Push immer einen Hinweis an.

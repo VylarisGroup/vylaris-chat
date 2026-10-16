@@ -35,7 +35,15 @@ final class Migrator
             }
             $sql = (string) file_get_contents(ROOT_PATH . '/database/migrations/' . $file);
             foreach (self::statements($sql) as $stmt) {
-                $pdo->exec($stmt);
+                try {
+                    $pdo->exec($stmt);
+                } catch (\PDOException $e) {
+                    // Erneuter Lauf nach teilweise angewendeter Migration: vorhandene Spalten/Indizes/Tabellen sind kein Fehler.
+                    $code = (int) ($e->errorInfo[1] ?? 0);
+                    if (!in_array($code, [1060, 1061, 1050, 1091], true)) {
+                        throw $e;
+                    }
+                }
             }
             $pdo->prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)')->execute([$file, gmdate('Y-m-d H:i:s')]);
             $applied[] = $file;
