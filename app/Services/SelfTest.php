@@ -764,13 +764,11 @@ final class SelfTest
                 $kp = sodium_crypto_sign_keypair();
                 $other = sodium_crypto_sign_keypair();
                 $pem = base64_encode(hex2bin('302a300506032b6570032100') . sodium_crypto_sign_publickey($kp));
-                $old = Settings::get('license_public_key');
-                Settings::set('license_public_key', $pem);
-                try {
+                {
                     $now = time();
                     $payload = json_encode(['valid' => true, 'code' => 'OK', 'ts' => $now]);
                     $sig = base64_encode(sodium_crypto_sign_detached($payload, sodium_crypto_sign_secretkey($kp)));
-                    self::eq('OK', License::verified($payload, $sig, $now)['code'], 'Gültige Antwort');
+                    self::eq('OK', License::verified($payload, $sig, $now, $pem)['code'], 'Gültige Antwort');
                     $thrown = static function (callable $f): bool {
                         try {
                             $f();
@@ -779,14 +777,17 @@ final class SelfTest
                         }
                         return false;
                     };
-                    self::ok($thrown(fn () => License::verified(str_replace('true', 'false', $payload), $sig, $now)), 'Manipulierte Nutzdaten akzeptiert.');
+                    self::ok($thrown(fn () => License::verified(str_replace('true', 'false', $payload), $sig, $now, $pem)), 'Manipulierte Nutzdaten akzeptiert.');
                     $forged = base64_encode(sodium_crypto_sign_detached($payload, sodium_crypto_sign_secretkey($other)));
-                    self::ok($thrown(fn () => License::verified($payload, $forged, $now)), 'Fremde Signatur akzeptiert.');
-                    self::ok($thrown(fn () => License::verified($payload, $sig, $now + 3600)), 'Veraltete Antwort akzeptiert.');
-                    self::ok($thrown(fn () => License::verified($payload, 'kein-base64!', $now)), 'Defekte Signatur akzeptiert.');
-                } finally {
-                    Settings::set('license_public_key', $old);
+                    self::ok($thrown(fn () => License::verified($payload, $forged, $now, $pem)), 'Fremde Signatur akzeptiert.');
+                    self::ok($thrown(fn () => License::verified($payload, $sig, $now + 3600, $pem)), 'Veraltete Antwort akzeptiert.');
+                    self::ok($thrown(fn () => License::verified($payload, 'kein-base64!', $now, $pem)), 'Defekte Signatur akzeptiert.');
                 }
+            },
+            'Lizenz: fester Schlüssel und Server' => static function () {
+                self::ok(License::publicKeyRaw(License::PUBLIC_KEY) !== null, 'Eingebauter Schlüssel ungültig.');
+                self::eq('EADF15A35395B758', strtoupper(substr(hash('sha256', (string) License::publicKeyRaw(License::PUBLIC_KEY)), 0, 16)), 'Prüfsumme des eingebauten Schlüssels');
+                self::ok(str_starts_with(License::SERVER, 'https://'), 'Lizenzserver ohne HTTPS');
             },
             'Lizenz: öffentlicher Schlüssel (PEM und Base64)' => static function () {
                 $raw = random_bytes(32);
@@ -846,10 +847,11 @@ final class SelfTest
                 self::ok(Updater::newer('v1.0.0', ''), 'Ohne Installationsstand ist alles neu');
                 self::ok(Updater::newer('nightly', 'v1.0.0'), 'Nicht vergleichbare Namen gelten als neu');
             },
-            'Update: Status ohne Konfiguration' => static function () {
+            'Update: Feste Quelle und Status' => static function () {
                 $st = Updater::state();
                 self::ok(array_key_exists('available', $st) && array_key_exists('installed', $st), 'Statusfelder fehlen.');
-                return $st['configured'] ? 'Quelle: ' . $st['repo'] . '@' . $st['branch'] : 'Keine Update-Quelle eingerichtet (optional)';
+                self::eq(Updater::REPO, $st['repo'], 'Feste Update-Quelle');
+                return 'Quelle: ' . $st['repo'] . ' (Releases)';
             },
         ];
     }

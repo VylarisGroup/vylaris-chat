@@ -38,7 +38,6 @@ final class AdminUpdateController extends Controller
             'st' => Updater::state(),
             'pre' => Updater::prerequisites(),
             'backups' => Updater::codeBackups(),
-            'hasToken' => Settings::get('update_token_enc') !== '',
             'version' => APP_VERSION,
             'migrated' => $this->schemaCurrent(),
         ], 'layouts/main');
@@ -48,38 +47,6 @@ final class AdminUpdateController extends Controller
     {
         $avail = \App\Core\Migrator::available();
         return $avail === [] || @file_get_contents(storage_path('cache/schema.version')) === end($avail);
-    }
-
-    public function save(Request $r): Response
-    {
-        $admin = $this->user();
-        $in = $r->str('update_repo', '', 200);
-        $repo = $in === '' ? '' : Updater::parseRepo($in);
-        if ($repo === null) {
-            return $this->back(null, 'Bitte «Besitzer/Repository» oder die GitHub-Adresse angeben, z. B. meine-firma/messenger.');
-        }
-        $channel = $r->str('update_channel') === 'branch' ? 'branch' : 'release';
-        $branch = $r->str('update_branch', 'main', 100);
-        if ($branch === '' || !preg_match('#^[A-Za-z0-9._/-]{1,100}$#', $branch) || str_contains($branch, '..')) {
-            return $this->back(null, 'Der Branch-Name ist ungültig.');
-        }
-        $vis = $r->str('update_visibility') === 'private' ? 'private' : 'public';
-        Settings::set('update_repo', $repo);
-        Settings::set('update_channel', $channel);
-        Settings::set('update_branch', $branch);
-        Settings::set('update_visibility', $vis);
-        $token = $r->str('update_token', '', 300);
-        if ($vis === 'public') {
-            Settings::set('update_token_enc', '');
-        } elseif ($token !== '') {
-            Settings::set('update_token_enc', Crypto::encrypt($token));
-        }
-        @unlink(storage_path('cache/update.json'));
-        Audit::log('admin.update_settings', (int) $admin['id'], null, null, $repo . ($channel === 'branch' ? '@' . $branch : ' (Releases)') . ' (' . $vis . ')');
-        if ($vis === 'private' && Settings::get('update_token_enc') === '') {
-            return $this->back('Einstellungen gespeichert.', 'Für ein privates Repository fehlt noch das Zugriffstoken.');
-        }
-        return $this->check($r, 'Einstellungen gespeichert. ');
     }
 
     public function check(Request $r, string $prefix = ''): Response

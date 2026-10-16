@@ -50,9 +50,18 @@ final class License
         @unlink(self::cacheFile());
     }
 
+    /** Fester Lizenzserver und fester öffentlicher Schlüssel (Ed25519). Nur für Entwicklung/Tests per config.php überschreibbar ('license' => ['server' => …, 'public_key' => …]). */
+    public const SERVER = 'https://licence.vylaris.ch';
+    public const PUBLIC_KEY = "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAhV7L176abx5a05XciRbOOeFj6wkCnNiDrwEXw7KceiU=\n-----END PUBLIC KEY-----";
+
     public static function server(): string
     {
-        return rtrim(trim(Settings::get('license_server')) ?: 'https://licence.vylaris.ch', '/');
+        return rtrim(trim((string) Config::get('license.server', '')) ?: self::SERVER, '/');
+    }
+
+    public static function publicKey(): string
+    {
+        return trim((string) Config::get('license.public_key', '')) ?: self::PUBLIC_KEY;
     }
 
     private static function cacheFile(): string
@@ -76,7 +85,7 @@ final class License
 
     public static function publicKeyFingerprint(): string
     {
-        $raw = self::publicKeyRaw(Settings::get('license_public_key'));
+        $raw = self::publicKeyRaw(self::publicKey());
         return $raw === null ? '—' : strtoupper(substr(hash('sha256', $raw), 0, 16));
     }
 
@@ -133,9 +142,9 @@ final class License
     }
 
     /** @return array<string,mixed> */
-    public static function verified(string $payload, string $signature, ?int $now = null): array
+    public static function verified(string $payload, string $signature, ?int $now = null, ?string $publicKey = null): array
     {
-        $pub = self::publicKeyRaw(Settings::get('license_public_key'));
+        $pub = self::publicKeyRaw($publicKey ?? self::publicKey());
         $sig = base64_decode($signature, true);
         if ($pub === null || $sig === false || strlen($sig) !== SODIUM_CRYPTO_SIGN_BYTES) {
             throw new \RuntimeException('Signatur oder öffentlicher Schlüssel ungültig.');

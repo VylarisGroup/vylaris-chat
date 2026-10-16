@@ -13,7 +13,7 @@ Der Messenger ist lizenzpflichtig und prüft seine Lizenz über **TRS License** 
 ## Prüfung und Offline-Verhalten
 
 * Der Status wird alle 6 Stunden (bei ungültiger Lizenz alle 15 Minuten) nach der Antwort an den Benutzer neu geholt, ausserdem bei jeder Änderung im Admin.
-* Jede Antwort wird mit dem öffentlichen Schlüssel geprüft (Signatur und Zeitstempel, max. 5 Minuten Abweichung). Der öffentliche Schlüssel ist als Standard hinterlegt und unter *Lizenz* änderbar – **vergleiche ihn mit dem Schlüssel im Lizenz-Panel**.
+* Jede Antwort wird mit dem öffentlichen Schlüssel geprüft (Signatur und Zeitstempel, max. 5 Minuten Abweichung). Der öffentliche Schlüssel und der Lizenzserver (`https://licence.vylaris.ch`) sind fest in die Software eingebaut (`License::PUBLIC_KEY`, `License::SERVER`) und in der Oberfläche nicht änderbar; die Seite *Lizenz* zeigt nur die Prüfsumme. Nur für Tests lassen sie sich in `config/config.php` überschreiben (`'license' => ['server' => …, 'public_key' => …]`).
 * Ist der Lizenzserver nicht erreichbar, gilt die letzte signierte Bestätigung weitere **168 Stunden** (Einstellung `license_grace_hours`). Danach wechselt die Installation in den Nur-Lesen-Modus. Ein abgelaufenes Ablaufdatum wirkt sofort.
 
 ## Ohne gültige Lizenz: Nur-Lesen-Modus

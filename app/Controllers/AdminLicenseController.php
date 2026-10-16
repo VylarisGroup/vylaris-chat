@@ -48,19 +48,7 @@ final class AdminLicenseController extends Controller
     public function save(Request $r): Response
     {
         $admin = $this->user();
-        $server = rtrim($r->str('license_server', '', 200), '/');
-        if ($server !== '' && !preg_match('#^https://[^\s/]+(/[^\s]*)?$#', $server)) {
-            return $this->back(null, 'Die Adresse des Lizenzservers muss mit https:// beginnen.');
-        }
-        $pub = $r->str('license_public_key', '', 600);
-        if ($pub !== '' && License::publicKeyRaw($pub) === null) {
-            return $this->back(null, 'Der öffentliche Schlüssel ist kein gültiger Ed25519-Schlüssel (PEM oder Base64).');
-        }
-        Settings::set('license_server', $server !== '' ? $server : 'https://licence.vylaris.ch');
         Settings::set('license_product', $r->str('license_product', '', 80));
-        if ($pub !== '') {
-            Settings::set('license_public_key', $pub);
-        }
         $key = $r->str('license_key', '', 80);
         if ($key !== '') {
             if (!preg_match('/^[A-Za-z0-9][A-Za-z0-9\-]{5,78}$/', trim($key))) {

@@ -247,22 +247,6 @@ if ($authorized && $action === 'smtp_skip') {
 
 $installResult = null;
 if ($authorized && $action === 'install' && !empty($state['db']) && !empty($state['org']) && !empty($state['smtp_done'])) {
-    // Optional: Update-Quelle (GitHub)
-    $state['update'] = null;
-    $updRepo = $post('update_repo');
-    if ($updRepo !== '') {
-        $parsed = \App\Services\Updater::parseRepo($updRepo);
-        $vis = $post('update_visibility') === 'private' ? 'private' : 'public';
-        if ($parsed === null) {
-            $errors[] = 'Die GitHub-Adresse ist ungültig. Erwartet: besitzer/repository. Leer lassen, um Updates später einzurichten.';
-        } elseif ($vis === 'private' && $post('update_token') === '') {
-            $errors[] = 'Für ein privates Repository ist ein Zugriffstoken nötig.';
-        } else {
-            $channel = $post('update_channel') === 'branch' ? 'branch' : 'release';
-            $branch = $post('update_branch', 'main');
-            $state['update'] = ['repo' => $parsed, 'channel' => $channel, 'branch' => preg_match('#^[A-Za-z0-9._/-]{1,100}$#', $branch) && !str_contains($branch, '..') ? $branch : 'main', 'visibility' => $vis, 'token' => $vis === 'private' ? $post('update_token') : ''];
-        }
-    }
     $installResult = $errors ? null : run_install($state);
     if ($installResult['ok']) {
         $_SESSION['setup'] = [];
@@ -324,14 +308,6 @@ function run_install(array $state): array
             Settings::set('smtp_pass_enc', Crypto::encrypt((string) $s['pass']));
             Settings::set('smtp_from_email', $s['from_email']);
             Settings::set('smtp_from_name', $s['from_name']);
-        }
-        if (!empty($state['update'])) {
-            $u = $state['update'];
-            Settings::set('update_repo', $u['repo']);
-            Settings::set('update_channel', $u['channel']);
-            Settings::set('update_branch', $u['branch']);
-            Settings::set('update_visibility', $u['visibility']);
-            Settings::set('update_token_enc', $u['token'] !== '' ? Crypto::encrypt($u['token']) : '');
         }
         $adminId = User::create($org['admin_email'], $org['admin_name'], $state['admin_hash'], 'admin', true);
         \App\Services\Audit::log('system.installed', $adminId, 'user', $adminId, 'Version ' . APP_VERSION . ', Migrationen: ' . implode(', ', $applied));
@@ -577,11 +553,5 @@ $body = '<h1 class="mb-1 text-xl font-semibold">Installation starten</h1><p clas
     . '<div class="flex justify-between gap-4 py-2"><dt class="text-slate-500">SMTP</dt><dd class="text-right">' . ($s ? e($s['host']) . ':' . (int) $s['port'] : 'nicht konfiguriert') . '</dd></div>'
     . '</dl>'
     . '<form method="post" action="' . $self . '" class="mt-6 space-y-4">' . $csrf . '<input type="hidden" name="action" value="install">'
-    . '<details class="rounded-xl border border-slate-200 p-4" open><summary class="cursor-pointer text-sm font-medium">Automatische Updates aus GitHub (optional)</summary>'
-    . '<p class="mt-2 text-xs text-slate-500">Der Messenger prüft regelmässig, ob im Branch ein neuer Stand liegt, und installiert ihn auf Klick im Admin-Bereich. Das lässt sich auch später einrichten (Administration → Aktualisierung).</p>'
-    . '<div class="mt-3 grid gap-4 sm:grid-cols-2">' . field('update_repo', 'Repository', (string) ($_POST['update_repo'] ?? 'VylarisGroup/vylaris-chat'), 'text', 'maxlength="200" placeholder="besitzer/repository"') . field('update_branch', 'Branch (nur bei Quelle «Branch»)', (string) ($_POST['update_branch'] ?? 'main'), 'text', 'maxlength="100"') . '</div>'
-    . '<div class="mt-3 flex flex-wrap gap-4 text-sm"><label class="flex items-center gap-2"><input type="radio" name="update_channel" value="release"' . (($_POST['update_channel'] ?? 'release') !== 'branch' ? ' checked' : '') . '> GitHub-Releases (empfohlen)</label><label class="flex items-center gap-2"><input type="radio" name="update_channel" value="branch"' . (($_POST['update_channel'] ?? '') === 'branch' ? ' checked' : '') . '> Branch</label></div>'
-    . '<div class="mt-3 flex flex-wrap gap-4 text-sm"><label class="flex items-center gap-2"><input type="radio" name="update_visibility" value="public"' . (($_POST['update_visibility'] ?? 'public') !== 'private' ? ' checked' : '') . '> Öffentlich</label><label class="flex items-center gap-2"><input type="radio" name="update_visibility" value="private"' . (($_POST['update_visibility'] ?? '') === 'private' ? ' checked' : '') . '> Privat (Token nötig)</label></div>'
-    . '<div class="mt-3">' . field('update_token', 'GitHub-Token (nur für private Repositories)', '', 'password', 'maxlength="300" autocomplete="new-password"', 'Fine-grained Token mit Nur-Lese-Recht «Contents». Wird verschlüsselt gespeichert.') . '</div></details>'
     . '<div class="flex gap-3"><a class="btn btn-secondary" href="' . $self . '?step=4">Zurück</a><button class="btn btn-primary flex-1" type="submit">Jetzt installieren</button></div></form>';
 setup_page('Installation', $body, 5);

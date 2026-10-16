@@ -175,7 +175,6 @@ return static function (Router $r): void {
     $r->add('POST', '/admin/license/check', [AdminLicenseController::class, 'check'], $admin);
     $r->add('POST', '/admin/license/remove', [AdminLicenseController::class, 'remove'], $admin);
     $r->add('GET', '/admin/update', [AdminUpdateController::class, 'index'], $admin);
-    $r->add('POST', '/admin/update/save', [AdminUpdateController::class, 'save'], $admin);
     $r->add('POST', '/admin/update/check', [AdminUpdateController::class, 'check'], $admin);
     $r->add('POST', '/admin/update/install', [AdminUpdateController::class, 'install'], $admin);
     $r->add('POST', '/admin/update/baseline', [AdminUpdateController::class, 'baseline'], $admin);

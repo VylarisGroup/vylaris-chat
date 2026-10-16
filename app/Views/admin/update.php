@@ -50,27 +50,10 @@ $stat = static fn (string $l, string $v, string $cls = '') => '<div class="card 
 <?php endif; ?>
 
 <section class="card p-5 sm:p-6" aria-labelledby="h-src">
-  <h2 id="h-src" class="mb-1 text-base font-semibold">Quelle (GitHub)</h2>
-  <p class="mb-4 text-sm text-slate-500 dark:text-neutral-400">Standardmässig gilt jedes neue <strong>GitHub-Release</strong> (Tag, z. B. <code>v1.1.0</code>) als Update; Entwürfe und Vorabversionen werden ignoriert. Alternativ kann jeder neue Commit eines Branches als Update gelten. Der Messenger prüft alle 6 Stunden und zeigt hier und in der Administration einen Hinweis; installiert wird nur auf Klick. <code>config/config.php</code> und <code>storage/</code> bleiben immer unberührt. Das Repository muss das Projekt im Stamm oder im Ordner <code>messenger/</code> enthalten – inklusive der gebauten Datei <code>public/assets/css/app.css</code>.</p>
-  <div class="alert alert-info mb-4" role="note"><i class="bx bx-info-circle mt-0.5 text-lg" aria-hidden="true"></i><span><strong>Vertrauensgrenze:</strong> Die Echtheit wird nur über HTTPS und den Abgleich des Commits geprüft, nicht über eine Signatur. Wer Schreibzugriff auf das Repository oder das Token hat, kann damit Code auf dieser Installation ausführen. Schütze das Repository entsprechend (Zwei-Faktor, Branch-Schutz, Token mit Nur-Lese-Recht).</span></div>
-  <form method="post" action="<?= e(url('admin/update/save')) ?>" class="grid gap-4 sm:grid-cols-2">
-    <?= Csrf::field() ?>
-    <div><label class="label" for="u-repo">Repository</label><input id="u-repo" name="update_repo" class="input" maxlength="200" required placeholder="besitzer/repository" value="<?= e($s['update_repo']) ?>"></div>
-    <fieldset><legend class="label">Update-Quelle</legend>
-      <div class="flex flex-wrap gap-4 text-sm">
-        <label class="flex items-center gap-2"><input type="radio" name="update_channel" value="release" <?= $s['update_channel'] !== 'branch' ? 'checked' : '' ?>> GitHub-Releases (empfohlen)</label>
-        <label class="flex items-center gap-2"><input type="radio" name="update_channel" value="branch" <?= $s['update_channel'] === 'branch' ? 'checked' : '' ?>> Branch</label>
-      </div></fieldset>
-    <div><label class="label" for="u-br">Branch (nur bei Quelle «Branch»)</label><input id="u-br" name="update_branch" class="input" maxlength="100" value="<?= e($s['update_branch']) ?>"></div>
-    <fieldset class="sm:col-span-2"><legend class="label">Sichtbarkeit</legend>
-      <div class="flex flex-wrap gap-4 text-sm">
-        <label class="flex items-center gap-2"><input type="radio" name="update_visibility" value="public" <?= $s['update_visibility'] !== 'private' ? 'checked' : '' ?>> Öffentlich (kein Token)</label>
-        <label class="flex items-center gap-2"><input type="radio" name="update_visibility" value="private" <?= $s['update_visibility'] === 'private' ? 'checked' : '' ?>> Privat (Token nötig)</label>
-      </div></fieldset>
-    <div class="sm:col-span-2"><label class="label" for="u-tok">GitHub-Token (nur für private Repositories)</label><input id="u-tok" name="update_token" type="password" class="input" maxlength="300" autocomplete="new-password" placeholder="<?= $hasToken ? '•••••••• (gespeichert, leer lassen zum Beibehalten)' : 'github_pat_…' ?>"><p class="mt-1 text-xs text-slate-500 dark:text-neutral-400">Empfohlen: ein «fine-grained» Token, nur für dieses Repository, Berechtigung «Contents: Read-only». Es wird verschlüsselt gespeichert und nur an GitHub gesendet.</p></div>
-    <div class="flex flex-wrap gap-2 sm:col-span-2"><button class="btn btn-primary" type="submit">Speichern und prüfen</button></div>
-  </form>
-  <?php if ($st['configured']): ?><form method="post" action="<?= e(url('admin/update/check')) ?>" class="mt-3"><?= Csrf::field() ?><button class="btn btn-secondary" type="submit"><i class="bx bx-refresh text-lg" aria-hidden="true"></i>Jetzt auf Updates prüfen</button></form><?php endif; ?>
+  <h2 id="h-src" class="mb-1 text-base font-semibold">Update-Quelle</h2>
+  <p class="mb-4 text-sm text-slate-500 dark:text-neutral-400">Updates kommen immer aus den veröffentlichten <strong>GitHub-Releases</strong> von <code><?= e($st['repo']) ?></code>; Entwürfe und Vorabversionen werden ignoriert. Der Messenger prüft alle 6 Stunden und zeigt hier und in der Administration einen Hinweis; installiert wird nur auf Klick. <code>config/config.php</code> und <code>storage/</code> bleiben immer unberührt.</p>
+  <div class="alert alert-info mb-4" role="note"><i class="bx bx-info-circle mt-0.5 text-lg" aria-hidden="true"></i><span><strong>Vertrauensgrenze:</strong> Die Echtheit wird nur über HTTPS und den Abgleich des Commits geprüft, nicht über eine Signatur. Wer Schreibzugriff auf das Repository hat, kann damit Code auf dieser Installation ausführen. Schütze das Repository entsprechend (Zwei-Faktor, Branch-Schutz).</span></div>
+  <form method="post" action="<?= e(url('admin/update/check')) ?>"><?= Csrf::field() ?><button class="btn btn-secondary" type="submit"><i class="bx bx-refresh text-lg" aria-hidden="true"></i>Jetzt auf Updates prüfen</button></form>
 </section>
 
 <?php if ($backups): ?>

@@ -3,14 +3,15 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Core\Config;
+
 /**
- * Aktualisierung aus einem GitHub-Repository: standardmässig aus dem jüngsten Release (Kanal «release»),
- * alternativ aus dem Stand eines Branches (Kanal «branch»).
+ * Aktualisierung aus dem festen GitHub-Repository (Updater::REPO), immer aus dem jüngsten veröffentlichten Release.
  *
  * Ablauf: Prüfen (Release-Tag bzw. Commit des Branches) → Herunterladen (ZIP des geprüften Commits) → Entpacken und prüfen →
  * Code-Sicherung → Dateien ersetzen (config/config.php und storage/ bleiben unberührt) → Migrationen laufen beim
  * nächsten Aufruf automatisch. Gesichert wird nur per HTTPS und der Übereinstimmung des Commits (kein Signaturschlüssel):
- * Wer das Repository oder das Token kontrolliert, kontrolliert den Code dieser Installation.
+ * Wer das Repository kontrolliert, kontrolliert den Code dieser Installation.
  */
 final class Updater
 {
@@ -33,14 +34,23 @@ final class Updater
         return preg_match('#^[A-Za-z0-9][A-Za-z0-9._-]{0,38}/[A-Za-z0-9._-]{1,100}$#', $in) === 1 ? $in : null;
     }
 
-    public static function configured(): bool
+    /** Feste Update-Quelle. Nur für Entwicklung/Tests per config.php überschreibbar ('update' => ['repo' => …, 'api_base' => …]). */
+    public const REPO = 'VylarisGroup/vylaris-chat';
+
+    public static function repo(): string
     {
-        return self::parseRepo(Settings::get('update_repo')) !== null;
+        return self::parseRepo((string) Config::get('update.repo', '')) ?? self::REPO;
     }
 
+    public static function configured(): bool
+    {
+        return true;
+    }
+
+    /** Updates kommen immer aus den veröffentlichten GitHub-Releases. */
     public static function channel(): string
     {
-        return Settings::get('update_channel') === 'branch' ? 'branch' : 'release';
+        return 'release';
     }
 
     /** Ist $latest (Release-Tag) neuer als $installed? Bei nicht vergleichbaren Namen gilt jeder andere Commit als neu. */
@@ -60,13 +70,12 @@ final class Updater
 
     public static function branch(): string
     {
-        $b = trim(Settings::get('update_branch'));
-        return preg_match('#^[A-Za-z0-9._/-]{1,100}$#', $b) === 1 && !str_contains($b, '..') ? $b : 'main';
+        return 'main'; // nur Rückfall; massgeblich ist das Release
     }
 
     private static function apiBase(): string
     {
-        return rtrim(trim(Settings::get('update_api_base')) ?: 'https://api.github.com', '/');
+        return rtrim(trim((string) Config::get('update.api_base', '')) ?: 'https://api.github.com', '/');
     }
 
     private static function root(): string
@@ -127,10 +136,6 @@ final class Updater
     private static function headers(): array
     {
         $h = ['Accept: application/vnd.github+json', 'User-Agent: unternehmens-messenger-updater', 'X-GitHub-Api-Version: 2022-11-28'];
-        $token = Crypto::decrypt(Settings::get('update_token_enc'));
-        if ($token !== '' && Settings::get('update_visibility') === 'private') {
-            $h[] = 'Authorization: Bearer ' . $token;
-        }
         return $h;
     }
 
@@ -148,11 +153,11 @@ final class Updater
         }
         $msg = (string) ($res['json']['message'] ?? '');
         return match (true) {
-            $res['code'] === 401 => 'GitHub lehnt das Token ab (ungültig oder abgelaufen).',
-            $res['code'] === 403 && stripos($msg, 'rate limit') !== false => 'GitHub-Abfragelimit erreicht. Bitte später erneut versuchen (mit Token ist das Limit höher).',
+            $res['code'] === 401 => 'GitHub lehnt die Anfrage ab (401).',
+            $res['code'] === 403 && stripos($msg, 'rate limit') !== false => 'GitHub-Abfragelimit erreicht. Bitte später erneut versuchen.',
             $res['code'] === 403 => 'Zugriff verweigert' . ($msg !== '' ? ': ' . $msg : '.'),
-            $res['code'] === 409 => 'Das Repository ist leer. Lade zuerst das Projekt in den Branch hoch.',
-            $res['code'] === 404 => 'Repository oder Branch nicht gefunden. Bei privaten Repositories ist ein Token mit Lesezugriff nötig.',
+            $res['code'] === 409 => 'Das Repository ist leer.',
+            $res['code'] === 404 => 'Repository oder Release nicht gefunden. Das Repository muss öffentlich sein.',
             default => 'Unerwartete Antwort von GitHub (HTTP ' . $res['code'] . ').',
         };
     }
@@ -173,7 +178,7 @@ final class Updater
         $latest = (string) ($c['sha'] ?? '');
         return [
             'configured' => self::configured(),
-            'repo' => self::parseRepo(Settings::get('update_repo')),
+            'repo' => self::repo(),
             'branch' => self::branch(),
             'installed' => $installed,
             'installed_at' => Settings::get('update_installed_at'),
@@ -200,7 +205,7 @@ final class Updater
     /** Fragt den neuesten Commit des Branches ab. @return array<string,mixed> state() */
     public static function check(): array
     {
-        $repo = self::parseRepo(Settings::get('update_repo'));
+        $repo = self::repo();
         if ($repo === null) {
             return self::state();
         }
@@ -214,7 +219,7 @@ final class Updater
                 $rel = self::api('/repos/' . $repo . '/releases/latest');
                 $tag = (string) ($rel['json']['tag_name'] ?? '');
                 if ($rel['code'] === 404 && $rel['error'] === '') {
-                    throw new \RuntimeException('Es wurde noch kein Release veröffentlicht (Entwürfe und Vorabversionen zählen nicht) – oder das Repository ist privat und es fehlt das Token.');
+                    throw new \RuntimeException('Es wurde noch kein Release veröffentlicht (Entwürfe und Vorabversionen zählen nicht) im Repository.');
                 }
                 if ($rel['code'] !== 200 || preg_match('#^[A-Za-z0-9._+/-]{1,100}$#', $tag) !== 1 || str_contains($tag, '..')) {
                     throw new \RuntimeException(self::apiError($rel));
@@ -355,7 +360,7 @@ final class Updater
         if (!$pre['writable']) {
             return ['ok' => false, 'error' => 'Die Code-Verzeichnisse sind für PHP nicht beschreibbar. Bitte Dateirechte prüfen.'];
         }
-        $repo = self::parseRepo(Settings::get('update_repo'));
+        $repo = self::repo();
         if ($repo === null) {
             return ['ok' => false, 'error' => 'Es ist kein GitHub-Repository eingetragen.'];
         }
