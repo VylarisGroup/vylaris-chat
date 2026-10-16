@@ -1,5 +1,10 @@
 # Änderungen
 
+## 1.8.2 – Push ohne curl_multi (KeyHelp)
+
+* Push funktioniert jetzt auch, wenn der Hoster `curl_multi_*` über `disable_functions` sperrt (z. B. KeyHelp): Die Geräte werden dann nacheinander statt parallel bedient.
+* Zwingend nötig sind nur noch `curl_init`, `curl_exec` und die OpenSSL-Funktionen.
+
 ## 1.8.1 – Push-Test auf eingeschränkten Hostings (KeyHelp)
 
 * Der Push-Test liefert bei Problemen statt eines Fehlers 500 eine Meldung im Klartext (inkl. Datei/Zeile).

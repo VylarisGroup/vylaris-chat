@@ -7,7 +7,7 @@ declare(strict_types=1);
  */
 
 define('ROOT_PATH', dirname(__DIR__));
-const APP_VERSION = '1.8.1';
+const APP_VERSION = '1.8.2';
 
 if (PHP_VERSION_ID < 80300) {
     http_response_code(500);

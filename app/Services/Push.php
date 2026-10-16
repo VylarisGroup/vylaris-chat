@@ -268,7 +268,7 @@ final class Push
     public static function missingFunctions(): array
     {
         $out = [];
-        foreach (['curl_init', 'curl_multi_init', 'curl_multi_exec', 'curl_multi_select', 'curl_multi_getcontent', 'openssl_pkey_derive', 'openssl_pkey_new', 'openssl_sign', 'openssl_encrypt', 'hash_hkdf', 'random_bytes'] as $f) {
+        foreach (['curl_init', 'curl_setopt_array', 'curl_exec', 'curl_getinfo', 'openssl_pkey_derive', 'openssl_pkey_new', 'openssl_sign', 'openssl_encrypt', 'hash_hkdf', 'random_bytes'] as $f) {
             if (!function_exists($f)) {
                 $out[] = $f;
             }
@@ -291,7 +291,12 @@ final class Push
             return array_map(static fn (array $x): array => ['id' => (int) $x['id'], 'ua' => (string) $x['user_agent'], 'status' => 0, 'ok' => false, 'error' => $msg, 'encrypted' => false], Database::all('SELECT id, user_agent FROM push_subscriptions WHERE user_id = ?', [$userId]));
         }
         $subs = Database::all('SELECT id, endpoint, p256dh, auth_secret, fail_count, user_agent FROM push_subscriptions WHERE user_id = ?', [$userId]);
-        $mh = curl_multi_init();
+        // Parallel senden (curl_multi); wo der Hoster curl_multi_* sperrt (z. B. KeyHelp), nacheinander mit curl_exec.
+        $multi = true;
+        foreach (['curl_multi_init', 'curl_multi_add_handle', 'curl_multi_exec', 'curl_multi_select', 'curl_multi_getcontent', 'curl_multi_remove_handle', 'curl_multi_close'] as $f) {
+            $multi = $multi && function_exists($f);
+        }
+        $mh = $multi ? curl_multi_init() : null;
         $jobs = [];
         $json = (string) json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         foreach ($subs as $s) {
@@ -331,24 +336,34 @@ final class Push
                 CURLOPT_PROTOCOLS => $http ? (CURLPROTO_HTTP | CURLPROTO_HTTPS) : CURLPROTO_HTTPS,
                 CURLOPT_HTTPHEADER => $headers,
             ]);
-            curl_multi_add_handle($mh, $ch);
+            if ($multi) {
+                curl_multi_add_handle($mh, $ch);
+            }
             $jobs[] = [$row, $ch];
         }
-        do {
-            $status = curl_multi_exec($mh, $running);
-            if ($running) {
-                curl_multi_select($mh, 1.0);
-            }
-        } while ($running && $status === CURLM_OK);
+        if ($multi) {
+            do {
+                $status = curl_multi_exec($mh, $running);
+                if ($running) {
+                    curl_multi_select($mh, 1.0);
+                }
+            } while ($running && $status === CURLM_OK);
+        }
 
         $results = [];
         foreach ($jobs as [$row, $ch]) {
             if ($ch !== null) {
-                $row['status'] = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                $resp = (string) curl_multi_getcontent($ch);
-                $err = curl_error($ch);
-                curl_multi_remove_handle($mh, $ch);
-                curl_close($ch);
+                if ($multi) {
+                    $resp = (string) curl_multi_getcontent($ch);
+                    $err = curl_error($ch);
+                    $row['status'] = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    curl_multi_remove_handle($mh, $ch);
+                } else {
+                    $resp = (string) curl_exec($ch);
+                    $err = curl_error($ch);
+                    $row['status'] = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                }
+                @curl_close($ch);
                 $row['ok'] = $row['status'] >= 200 && $row['status'] < 300;
                 if (!$row['ok']) {
                     $row['error'] = $row['status'] === 0 ? ($err !== '' ? $err : 'keine Antwort') : 'HTTP ' . $row['status'] . ($resp !== '' ? ': ' . mb_substr(preg_replace('/\s+/', ' ', $resp) ?? '', 0, 160) : '');
@@ -371,7 +386,9 @@ final class Push
             }
             $results[] = $row;
         }
-        curl_multi_close($mh);
+        if ($multi) {
+            curl_multi_close($mh);
+        }
         return $results;
     }
 
