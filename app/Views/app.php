@@ -18,6 +18,8 @@ $v = static fn (string $f): string => (string) @filemtime(ROOT_PATH . '/public/'
   <link rel="apple-touch-icon" href="<?= e(url('assets/icons/apple-touch-icon.png')) ?>">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="<?= e(mb_substr($title, 0, 12)) ?>">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title><?= e($title) ?></title>
   <link rel="stylesheet" href="<?= e(url('assets/vendor/boxicons/css/boxicons.min.css')) ?>">
   <link rel="stylesheet" href="<?= e(url('assets/css/app.css')) ?>?v=<?= e($v('assets/css/app.css')) ?>">

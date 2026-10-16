@@ -42,6 +42,7 @@ final class AdminOperationsController extends Controller
             'errors' => Monitor::errorStats(),
             'subs' => (int) Database::value('SELECT COUNT(*) FROM push_subscriptions'),
             'pushUsers' => (int) Database::value('SELECT COUNT(DISTINCT user_id) FROM push_subscriptions'),
+            'myDevices' => Database::all('SELECT id, user_agent, p256dh, last_sent_at, last_status, last_error FROM push_subscriptions WHERE user_id = ? ORDER BY id', [(int) $this->user()['id']]),
             'curl' => function_exists('curl_init'),
             'openssl' => function_exists('openssl_pkey_new'),
             'mail' => Mail::configured(),
@@ -74,8 +75,16 @@ final class AdminOperationsController extends Controller
         if (!Push::enabled()) {
             return $this->back(null, 'Push ist nicht aktiviert.');
         }
-        $n = Push::sendNow((int) $admin['id']);
-        return $n > 0 ? $this->back("Test-Push an $n Gerät(e) gesendet.") : $this->back(null, 'Kein Gerät erreicht. Aktiviere Push zuerst unter Einstellungen → Benachrichtigungen.');
+        if (Push::countFor((int) $admin['id']) === 0) {
+            return $this->back(null, 'Auf deinen Geräten ist Push noch nicht eingeschaltet. Aktiviere es zuerst unter Einstellungen → Benachrichtigungen (auf dem iPhone muss die App dafür zum Home-Bildschirm hinzugefügt sein).');
+        }
+        $res = Push::sendDetailed((int) $admin['id'], Push::payload((int) $admin['id'], 'Test: Push-Benachrichtigungen funktionieren.'));
+        $ok = count(array_filter($res, static fn (array $x): bool => $x['ok']));
+        $fails = array_map(static fn (array $x): string => '«' . ($x['ua'] !== '' ? mb_substr($x['ua'], 0, 40) : 'Gerät ' . $x['id']) . '»: ' . $x['error'], array_filter($res, static fn (array $x): bool => !$x['ok']));
+        if ($ok === count($res)) {
+            return $this->back("Test-Push an $ok Gerät(e) vom Push-Dienst angenommen. Er sollte gleich erscheinen – auch bei geschlossener App.");
+        }
+        return $this->back($ok > 0 ? "$ok von " . count($res) . ' Geräten erreicht.' : null, $ok > 0 ? null : 'Kein Gerät erreicht. ' . implode(' · ', $fails));
     }
 
     public function saveMonitor(Request $r): Response

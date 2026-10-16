@@ -4,7 +4,7 @@ import { api } from './api.js';
 import { store } from './store.js';
 import { h, icon, clear, userAvatar, convAvatar, humanSize, relativeSeen, presenceLabel, url, debounce, listTime, state } from './util.js';
 import { toast, modal, openPopover, closeMenu } from './ui.js';
-import { pushAvailable, pushEnabledHere, enablePush, disablePush } from './push.js';
+import { pushAvailable, pushEnabledHere, enablePush, disablePush, pushHint } from './push.js';
 
 // ------------------------------------------------------------ Formular-Helfer
 
@@ -420,8 +420,8 @@ function notificationsTab(pane) {
       pushHost.append(toggleRow(
         'Push-Benachrichtigungen auf diesem Gerät',
         pushAvailable()
-          ? 'Hinweise auch bei geschlossenem Fenster – nur bei Direktnachrichten und Erwähnungen. Über den Push-Dienst deines Browsers läuft kein Nachrichtentext, nur ein leeres Signal.'
-          : 'Auf diesem Gerät nicht verfügbar (HTTPS und ein unterstützter Browser nötig; auf dem iPhone zuerst zum Home-Bildschirm hinzufügen).',
+          ? 'Hinweise auch bei geschlossener App – nur bei Direktnachrichten und Erwähnungen. Der Push-Dienst des Geräteherstellers sieht nur verschlüsselte Daten; der Nachrichtentext wird nie übertragen.'
+          : (pushHint() || 'Auf diesem Gerät nicht verfügbar.'),
         on,
         async (v) => { if (!pushAvailable()) throw new Error('Nicht verfügbar.'); if (v) await enablePush(); else await disablePush(); },
       ));

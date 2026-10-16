@@ -25,6 +25,13 @@ let streamOk = false;
 let streamKey = '';
 
 /** Echtzeitmodus: EventSource weckt den normalen Poll auf. Fällt bei Fehlern automatisch aufs reine Polling zurück. */
+/** Meldet dem Server sofort, dass die App nicht mehr sichtbar ist, damit Push ab jetzt zugestellt wird. */
+function reportHidden() {
+  try {
+    fetch(url('/api/presence/hidden'), { method: 'POST', keepalive: true, credentials: 'same-origin', headers: { 'X-CSRF-Token': api.csrf, 'Content-Type': 'application/json', Accept: 'application/json' }, body: '{}' }).catch(() => {});
+  } catch { /* optional */ }
+}
+
 function openStream() {
   if (!store.realtime || store.realtime !== 'sse' || !('EventSource' in window) || document.hidden) {
     closeStream();
@@ -65,7 +72,7 @@ export function startPolling() {
   const bump = () => { lastActivity = Date.now(); };
   for (const evt of ['pointerdown', 'keydown', 'touchstart', 'wheel']) window.addEventListener(evt, bump, { passive: true });
   window.addEventListener('mousemove', (() => { let t = 0; return () => { const n = Date.now(); if (n - t > 5000) { t = n; bump(); } }; })(), { passive: true });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) { bump(); schedule(50); openStream(); } else closeStream(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { bump(); schedule(50); openStream(); } else { closeStream(); reportHidden(); } });
   store.on('active', () => { if (store.realtime === 'sse') { closeStream(); openStream(); } });
   window.addEventListener('online', () => { schedule(50); });
   window.addEventListener('offline', () => setOnline(false));
@@ -84,7 +91,7 @@ async function tick() {
   if (inFlight) return;
   inFlight = true;
   try {
-    const q = new URLSearchParams({ cursor: String(store.cursor), view: String(store.activeId || 0), active: isActive() ? '1' : '0' });
+    const q = new URLSearchParams({ cursor: String(store.cursor), view: String(store.activeId || 0), active: isActive() ? '1' : '0', visible: document.hidden ? '0' : '1' });
     const res = await api.get(`/api/poll?${q}`, { timeout: 20000 });
     failures = 0;
     setOnline(true);

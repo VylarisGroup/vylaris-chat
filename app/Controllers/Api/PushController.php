@@ -26,10 +26,42 @@ final class PushController extends Controller
         if (Push::countFor((int) $u['id']) >= 10) {
             throw new HttpException(422, 'Es sind bereits zu viele Geräte registriert.');
         }
-        if (!Push::subscribe((int) $u['id'], $r->str('endpoint', '', 1000), (string) ($_SERVER['HTTP_USER_AGENT'] ?? ''))) {
+        if (!Push::subscribe((int) $u['id'], $r->str('endpoint', '', 1000), (string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), $r->str('p256dh', '', 100) ?: null, $r->str('auth', '', 40) ?: null)) {
             throw new HttpException(422, 'Dieser Push-Dienst wird nicht unterstützt.');
         }
         return $this->json(['ok' => true], 201);
+    }
+
+    /** Die App ist nicht mehr sichtbar (Tab im Hintergrund, PWA geschlossen): ab jetzt wieder Push zustellen. */
+    public function hidden(Request $r): Response
+    {
+        Database::exec('UPDATE users SET last_visible_at = NULL WHERE id = ?', [(int) $this->user()['id']]);
+        return $this->json(['ok' => true]);
+    }
+
+    /** Öffentlicher VAPID-Schlüssel für den Service Worker (z. B. wenn der Browser das Abo erneuert hat). */
+    public function key(Request $r): Response
+    {
+        if (!Push::enabled()) {
+            throw new HttpException(404, 'Push ist nicht aktiviert.');
+        }
+        return $this->json(['public_key' => Settings::get('vapid_public')]);
+    }
+
+    /** Vom Service Worker bei «pushsubscriptionchange»: Push-Adresse ersetzen, ohne Sitzung. */
+    public function resubscribe(Request $r): Response
+    {
+        if (!Push::enabled()) {
+            throw new HttpException(404, 'Push ist nicht aktiviert.');
+        }
+        if (!RateLimiter::hit('push_resub', client_ip(), 30, 3600)) {
+            throw new HttpException(429, 'Zu viele Versuche.');
+        }
+        $ok = Push::resubscribe($r->str('old_endpoint', '', 1000), $r->str('endpoint', '', 1000), $r->str('p256dh', '', 100) ?: null, $r->str('auth', '', 40) ?: null, (string) ($_SERVER['HTTP_USER_AGENT'] ?? ''));
+        if (!$ok) {
+            throw new HttpException(422, 'Unbekanntes Gerät.');
+        }
+        return $this->json(['ok' => true]);
     }
 
     public function unsubscribe(Request $r): Response

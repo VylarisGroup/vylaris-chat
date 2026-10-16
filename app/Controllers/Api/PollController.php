@@ -89,6 +89,7 @@ final class PollController extends Controller
         $cursor = max(0, (int) $r->query('cursor', 0));
         $view = (int) $r->query('view', 0);
         $active = (bool) $r->query('active', 1);
+        $visible = (bool) $r->query('visible', 0);
 
         // Anwesenheit (höchstens alle 20 Sekunden schreiben)
         $seen = $user['last_seen_at'] ? strtotime($user['last_seen_at'] . ' UTC') : 0;
@@ -98,6 +99,14 @@ final class PollController extends Controller
                 $active ? 'UPDATE users SET last_seen_at = ?, last_active_at = ? WHERE id = ?' : 'UPDATE users SET last_seen_at = ? WHERE id = ?',
                 $active ? [now(), now(), $uid] : [now(), $uid]
             );
+        }
+
+        // Sichtbarkeit der App (für Push): nur wenn der Tab/die PWA im Vordergrund ist, höchstens alle 10 Sekunden schreiben
+        if ($visible) {
+            $vis = !empty($user['last_visible_at']) ? strtotime($user['last_visible_at'] . ' UTC') : 0;
+            if (time() - $vis >= 10) {
+                Database::exec('UPDATE users SET last_visible_at = ? WHERE id = ?', [now(), $uid]);
+            }
         }
 
         $events = Events::since($uid, $cursor, self::LIMIT + 1);

@@ -1,5 +1,13 @@
 # Änderungen
 
+## 1.8.0 – Push-Benachrichtigungen repariert
+
+* **Verschlüsselte Push-Nachrichten (RFC 8291) mit korrekter VAPID-Signatur:** iOS (Home-Bildschirm-App ab 16.4) und Android erhalten Hinweise zuverlässig, auch wenn die App geschlossen ist. Der Service Worker zeigt bei jedem Push immer einen Hinweis an.
+* **Unterdrückung nur bei sichtbarer App:** Ein Push wird nur ausgelassen, wenn die App in den letzten 30 Sekunden sichtbar war (vorher blockierte der Online-Status fälschlich).
+* Hohe Dringlichkeit (Android Doze), Zusammenfassen je Unterhaltung, Abo-Erneuerung (`pushsubscriptionchange`) und regelmässiger Abgleich.
+* Administration → Betrieb: Geräteliste mit letztem Status und Fehlertext, Test-Push zeigt Fehler je Gerät.
+* **Wichtig:** Bestehende Geräte einmal in Einstellungen → Benachrichtigungen Push aus- und wieder einschalten (neue Schlüssel). iOS: Zuerst «Zum Home-Bildschirm».
+
 ## 1.7.0 – Assistenten und neue Seitenleiste
 
 * **Seitenleiste überarbeitet:** Die Administration ist in ausklappbare Gruppen gegliedert (Verwaltung, Sicherheit & Datenschutz, System, Software, Assistenten). Die Gruppe der aktuellen Seite ist offen, der Zustand der übrigen wird im Browser gemerkt. Mobil lässt sich das ganze Menü einklappen.

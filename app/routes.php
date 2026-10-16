@@ -97,6 +97,10 @@ return static function (Router $r): void {
     $r->add('POST', '/api/push/subscribe', [PushController::class, 'subscribe'], $api);
     $r->add('POST', '/api/push/unsubscribe', [PushController::class, 'unsubscribe'], $api);
     $r->add('GET', '/api/push/latest', [PushController::class, 'latest'], $api);
+    $r->add('POST', '/api/presence/hidden', [PushController::class, 'hidden'], $api);
+    // Ohne Sitzung: der Service Worker erneuert hier seine Push-Adresse (autorisiert über die alte Adresse)
+    $r->add('POST', '/api/push/resubscribe', [PushController::class, 'resubscribe']);
+    $r->add('GET', '/api/push/key', [PushController::class, 'key']);
     $r->add('GET', '/api/me/2fa', [TwoFactorApiController::class, 'status'], $api);
     $r->add('POST', '/api/me/2fa/recovery', [TwoFactorApiController::class, 'recovery'], $api);
     $r->add('POST', '/api/me/2fa/disable', [TwoFactorApiController::class, 'disable'], $api);

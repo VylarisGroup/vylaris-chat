@@ -116,10 +116,10 @@ final class PrivacyReview
             'purpose' => 'Hinweise auf neue Nachrichten und Erwähnungen (In-App, E-Mail' . (($s['push_enabled'] ?? '0') === '1' ? ', Push' : '') . ')',
             'subjects' => 'Alle Nutzenden',
             'data' => 'E-Mail-Adresse, Name, Benachrichtigungseinstellungen' . (($s['push_enabled'] ?? '0') === '1' ? ', Push-Geräteadresse' : '') . ' (nie Nachrichteninhalte)',
-            'recipients' => 'E-Mail-Versanddienst (SMTP)' . (($s['push_enabled'] ?? '0') === '1' ? '; Push-Dienste der Browser-Hersteller (nur leeres Signal)' : ''),
+            'recipients' => 'E-Mail-Versanddienst (SMTP)' . (($s['push_enabled'] ?? '0') === '1' ? '; Push-Dienste der Browser-Hersteller (nur verschlüsselte Daten, ohne Nachrichtentext)' : ''),
             'abroad' => 'Standort SMTP-Anbieter prüfen' . (($s['push_enabled'] ?? '0') === '1' ? '; Push-Dienste (Google/Mozilla/Apple) ggf. USA' : ''),
             'retention' => 'Gelesene Hinweise 30 Tage; Push bis zur Abmeldung des Geräts',
-            'toms' => 'Mails ohne Inhalt, Push ohne Nutzlast, Opt-in für Push',
+            'toms' => 'Mails ohne Inhalt, Push verschlüsselt (RFC 8291) ohne Nachrichtentext, Opt-in für Push',
         ];
         $a[] = [
             'name' => 'Meldungen von Nachrichten',

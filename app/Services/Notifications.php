@@ -31,7 +31,7 @@ final class Notifications
         $isDirect = $conv['type'] === 'direct';
         $members = Database::all(
             'SELECT cm.id AS member_row, cm.user_id, cm.muted, cm.last_viewed_at, cm.last_emailed_at,
-                    u.email, u.display_name, u.processing_restricted_at, u.last_seen_at, u.last_active_at, u.presence_pref,
+                    u.email, u.display_name, u.processing_restricted_at, u.last_seen_at, u.last_active_at, u.last_visible_at, u.presence_pref,
                     COALESCE(s.notify_email_direct, 1) AS notify_email_direct, COALESCE(s.notify_email_mentions, 1) AS notify_email_mentions
              FROM conversation_members cm
              JOIN users u ON u.id = cm.user_id
@@ -47,11 +47,14 @@ final class Notifications
             $uid = (int) $m['user_id'];
             $mentioned = in_array($uid, $mentionedIds, true);
             $kind = null;
+            $pushText = '';
             if ($mentioned) {
                 $kind = 'mention';
-                self::create($uid, 'mention', (int) $sender['id'], $convId, (int) $msg['id'], $senderName . ' hat dich in „' . $convName . '“ erwähnt.');
+                $pushText = $senderName . ' hat dich in „' . $convName . '“ erwähnt.';
+                self::create($uid, 'mention', (int) $sender['id'], $convId, (int) $msg['id'], $pushText);
             } elseif ($isDirect && !(int) $m['muted']) {
                 $kind = 'message';
+                $pushText = 'Neue Nachricht von ' . $senderName;
                 // Ungelesene Direktnachrichten pro Unterhaltung zu einer Benachrichtigung zusammenfassen
                 $upd = Database::exec(
                     "UPDATE notifications SET message_id = ?, created_at = ?, text = ? WHERE user_id = ? AND conversation_id = ? AND type = 'message' AND read_at IS NULL",
@@ -62,10 +65,11 @@ final class Notifications
                 }
             }
             if ($kind !== null && $m['processing_restricted_at'] === null) {
-                $watching = $m['last_viewed_at'] && (time() - strtotime($m['last_viewed_at'] . ' UTC')) < 120;
-                $online = User::presence(['presence_pref' => $m['presence_pref'], 'last_seen_at' => $m['last_seen_at'], 'last_active_at' => $m['last_active_at']]) === 'online';
-                if (!$watching && !$online) {
-                    Push::notify($uid);
+                // Kein Push nur, solange die App sichtbar geöffnet ist (das meldet der Client mit jedem Poll bzw. beim Verbergen).
+                // Ein Tab im Hintergrund oder eine geschlossene PWA zählt nicht als «online»: sonst bliebe der Push bis zu 90 Sekunden aus.
+                $visible = !empty($m['last_visible_at']) && (time() - strtotime($m['last_visible_at'] . ' UTC')) < Push::VISIBLE_WINDOW;
+                if (!$visible) {
+                    Push::notify($uid, Push::payload($uid, $pushText, $convId, (int) $msg['id']));
                 }
             }
             if ($kind === null || !$emailEnabled || $m['processing_restricted_at'] !== null) {

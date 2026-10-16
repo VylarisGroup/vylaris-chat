@@ -31,6 +31,7 @@ final class PageController extends Controller
         $name = \App\Services\Settings::get('company_name');
         $accent = \App\Services\Settings::get('accent_color');
         $manifest = [
+            'id' => ($base ?: '') . '/',
             'name' => $name,
             'short_name' => mb_substr($name, 0, 12),
             'description' => 'Unternehmens-Messenger',
@@ -38,6 +39,8 @@ final class PageController extends Controller
             'start_url' => ($base ?: '') . '/',
             'scope' => ($base ?: '') . '/',
             'display' => 'standalone',
+            'orientation' => 'any',
+            'categories' => ['business', 'productivity', 'social'],
             'background_color' => '#ffffff',
             'theme_color' => preg_match('/^#[0-9a-fA-F]{6}$/', $accent) ? $accent : '#2f6fed',
             'icons' => [

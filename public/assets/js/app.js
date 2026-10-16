@@ -8,7 +8,7 @@ import { initChat, openConversation } from './chat.js';
 import { initSidebar, focusSearch } from './sidebar.js';
 import { initDetails } from './details.js';
 import { startPolling, refreshTitle } from './poll.js';
-import { registerServiceWorker } from './push.js';
+import { registerServiceWorker, syncPush, clearBadge } from './push.js';
 import { newChatDialog, shortcutsDialog } from './dialogs.js';
 
 state.base = document.querySelector('meta[name="app-base"]')?.content || '';
@@ -129,7 +129,9 @@ async function main() {
   else if (c) toast('Diese Unterhaltung ist nicht verfügbar.', 'warn');
 
   startPolling();
-  registerServiceWorker();
+  registerServiceWorker().then(() => syncPush());
+  clearBadge();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) clearBadge(); });
 }
 
 main().catch((e) => { console.error(e); fatal('Unerwarteter Fehler beim Start.'); });

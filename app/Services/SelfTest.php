@@ -400,7 +400,12 @@ final class SelfTest
             },
             'Zustandsändernde Routen sind CSRF-geschützt' => static function () use ($router) {
                 $bad = [];
+                // Bewusste Ausnahme: Der Service Worker hat weder Sitzung noch CSRF-Token (Adresserneuerung, autorisiert über die alte Push-Adresse).
+                $allowed = ['#^/api/push/resubscribe$#'];
                 foreach ($router()->all() as $r) {
+                    if (in_array($r['regex'], $allowed, true)) {
+                        continue;
+                    }
                     if (in_array($r['method'], ['POST', 'PUT', 'PATCH', 'DELETE'], true) && !in_array(VerifyCsrf::class, $r['middleware'], true)) {
                         $bad[] = $r['method'] . ' ' . $r['regex'];
                     }
@@ -423,7 +428,12 @@ final class SelfTest
             },
             'Alle API-Routen erfordern Anmeldung' => static function () use ($router) {
                 $bad = [];
+                // Bewusste Ausnahmen für den Service Worker: öffentlicher VAPID-Schlüssel und Adresserneuerung (Rate-Limit, Autorisierung über die alte Adresse).
+                $allowed = ['#^/api/push/resubscribe$#', '#^/api/push/key$#'];
                 foreach ($router()->all() as $r) {
+                    if (in_array($r['regex'], $allowed, true)) {
+                        continue;
+                    }
                     if (str_contains($r['regex'], '/api/') && !in_array(Authenticate::class, $r['middleware'], true)) {
                         $bad[] = $r['method'] . ' ' . $r['regex'];
                     }
@@ -718,7 +728,7 @@ final class SelfTest
             'Push: Endpunkt-Allowlist und Signaturformat' => static function () {
                 self::ok(Push::allowedEndpoint('https://fcm.googleapis.com/fcm/send/abc'), 'FCM abgelehnt.');
                 self::ok(Push::allowedEndpoint('https://updates.push.services.mozilla.com/wpush/v2/abc'), 'Mozilla abgelehnt.');
-                foreach (['http://fcm.googleapis.com/x', 'https://evil.example/x', 'https://fcm.googleapis.com.evil.example/x', 'https://user@fcm.googleapis.com/x', 'https://127.0.0.1/x', 'ftp://fcm.googleapis.com/x'] as $bad) {
+                foreach (['http://fcm.googleapis.com/x', 'https://evil.example/x', 'https://fcm.googleapis.com.evil.example/x', 'https://user@fcm.googleapis.com/x', 'https://10.0.0.5/x', 'ftp://fcm.googleapis.com/x'] as $bad) {
                     self::ok(!Push::allowedEndpoint($bad), 'Unerlaubter Endpunkt akzeptiert: ' . $bad);
                 }
                 $key = openssl_pkey_new(['curve_name' => 'prime256v1', 'private_key_type' => OPENSSL_KEYTYPE_EC]);
@@ -731,6 +741,57 @@ final class SelfTest
                 self::eq(1, Push::countFor((int) $u['id']), 'Anzahl Abos');
                 Push::unsubscribe((int) $u['id'], 'https://fcm.googleapis.com/fcm/send/selftest');
                 self::eq(0, Push::countFor((int) $u['id']), 'Abos nach Abmeldung');
+            },
+            'Push: Verschlüsselung der Nutzlast (RFC 8291) und Schlüsselprüfung' => static function () {
+                $ua = openssl_pkey_new(['curve_name' => 'prime256v1', 'private_key_type' => OPENSSL_KEYTYPE_EC]);
+                $d = openssl_pkey_get_details($ua);
+                $pub = "\x04" . str_pad($d['ec']['x'], 32, "\0", STR_PAD_LEFT) . str_pad($d['ec']['y'], 32, "\0", STR_PAD_LEFT);
+                $auth = random_bytes(16);
+                $p256dh = Push::b64($pub);
+                $a = Push::b64($auth);
+                self::ok(Push::validKeys($p256dh, $a), 'Gültige Schlüssel abgelehnt.');
+                foreach ([[null, $a], [$p256dh, null], ['', ''], ['AAAA', $a], [$p256dh, 'AAAA']] as [$k, $x]) {
+                    self::ok(!Push::validKeys($k, $x), 'Ungültige Schlüssel akzeptiert.');
+                }
+                $msg = (string) json_encode(['title' => 'Firma', 'body' => 'Neue Nachricht von Bärbel – äöü €'], JSON_UNESCAPED_UNICODE);
+                $enc = Push::encrypt($msg, $p256dh, $a);
+                self::ok(!str_contains($enc, 'Bärbel'), 'Nutzlast ist nicht verschlüsselt.');
+                self::eq($msg, Push::decrypt($enc, $ua, $a), 'Entschlüsselung');
+                self::ok(Push::encrypt($msg, $p256dh, $a) !== $enc, 'Zwei Verschlüsselungen sind identisch (kein Zufall).');
+                $bad = $enc;
+                $bad[strlen($bad) - 3] = $bad[strlen($bad) - 3] ^ "\x01";
+                try {
+                    Push::decrypt($bad, $ua, $a);
+                    self::ok(false, 'Manipulierte Nutzlast akzeptiert.');
+                } catch (\RuntimeException) {
+                }
+                try {
+                    Push::decrypt($enc, $ua, Push::b64(random_bytes(16)));
+                    self::ok(false, 'Falsches Auth-Geheimnis akzeptiert.');
+                } catch (\RuntimeException) {
+                }
+                self::ok(strlen($enc) <= 4096, 'Datensatz grösser als 4096 Byte.');
+            },
+            'Push: Nutzlast enthält nur Hinweistext, Adresserneuerung' => static function () {
+                $u = self::newUser('Q');
+                $pl = Push::payload((int) $u['id'], 'Neue Nachricht von X', 7, 9);
+                self::eq('?c=7&m=9', $pl['url'], 'Link');
+                self::eq('conv-7', $pl['tag'], 'Tag');
+                self::ok($pl['badge'] >= 1, 'Zähler');
+                $ua = openssl_pkey_new(['curve_name' => 'prime256v1', 'private_key_type' => OPENSSL_KEYTYPE_EC]);
+                $d = openssl_pkey_get_details($ua);
+                $k = Push::b64("\x04" . str_pad($d['ec']['x'], 32, "\0", STR_PAD_LEFT) . str_pad($d['ec']['y'], 32, "\0", STR_PAD_LEFT));
+                $a = Push::b64(random_bytes(16));
+                $old = 'https://fcm.googleapis.com/fcm/send/selftest-old';
+                $new = 'https://fcm.googleapis.com/fcm/send/selftest-new';
+                self::ok(Push::subscribe((int) $u['id'], $old, 'ua', $k, $a), 'Abo mit Schlüsseln nicht gespeichert.');
+                self::eq(1, (int) Database::value('SELECT COUNT(*) FROM push_subscriptions WHERE user_id = ? AND p256dh IS NOT NULL', [$u['id']]), 'Schlüssel gespeichert');
+                self::ok(!Push::resubscribe('https://fcm.googleapis.com/fcm/send/unknown', $new, $k, $a, 'ua'), 'Unbekannte alte Adresse akzeptiert.');
+                self::ok(!Push::resubscribe($old, 'https://evil.example/x', $k, $a, 'ua'), 'Fremde neue Adresse akzeptiert.');
+                self::ok(Push::resubscribe($old, $new, $k, $a, 'ua'), 'Erneuerung fehlgeschlagen.');
+                self::eq(1, Push::countFor((int) $u['id']), 'Anzahl nach Erneuerung');
+                self::eq(1, (int) Database::value('SELECT COUNT(*) FROM push_subscriptions WHERE endpoint = ?', [$new]), 'Neue Adresse gespeichert');
+                Push::unsubscribe((int) $u['id'], $new);
             },
             'Hintergrundauftrag: Datenexport entsteht, ist nur dem Besitzer zugeordnet und wird entfernt' => static function () {
                 $u = self::newUser('X');
@@ -981,7 +1042,8 @@ final class SelfTest
                 }
                 $sw = (string) file_get_contents(ROOT_PATH . '/public/sw.js');
                 self::ok(str_contains($sw, "'push'") && str_contains($sw, 'notificationclick'), 'Service Worker unvollständig.');
-                self::ok(!str_contains($sw, 'event.data'), 'Service Worker liest eine Nutzlast aus dem Push (es sollen keine Inhalte über Push-Dienste laufen).');
+                self::ok(str_contains($sw, 'event.data') && str_contains($sw, 'pushsubscriptionchange'), 'Service Worker liest die verschlüsselte Nutzlast nicht oder erneuert das Abo nicht.');
+                self::ok(!str_contains($sw, 'visibilityState'), 'Service Worker unterdrückt Hinweise bei sichtbarer App (iOS entzieht dann das Abo).');
                 $m = (new \App\Controllers\PageController())->manifest(new Request('GET', '/manifest.webmanifest', [], [], [], [], ''));
                 $j = json_decode((string) $m->body, true);
                 self::ok(is_array($j) && $j['display'] === 'standalone' && count($j['icons']) >= 3, 'Manifest ungültig.');
