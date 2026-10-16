@@ -12,7 +12,7 @@ use App\Services\Crypto;
 use App\Services\Settings;
 use App\Services\Updater;
 
-/** Aktualisierung aus einem GitHub-Repository (Branch). */
+/** Aktualisierung aus den GitHub-Releases. */
 final class AdminUpdateController extends Controller
 {
     private function back(?string $notice = null, ?string $error = null): Response

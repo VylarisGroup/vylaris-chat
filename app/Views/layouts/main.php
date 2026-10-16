@@ -17,6 +17,7 @@ $nav = [
     ['operations', 'admin/operations', 'Betrieb', 'pulse'],
     ['license', 'admin/license', 'Lizenz', 'key'],
     ['update', 'admin/update', 'Aktualisierung', 'cloud-download'],
+    ['changelog', 'admin/changelog', 'Änderungen', 'news'],
     ['settings', 'admin/settings', 'Einstellungen', 'cog'],
     ['tests', 'admin/tests', 'Systemtest', 'check-shield'],
     ['logs', 'admin/logs', 'Protokoll', 'list-ul'],
@@ -66,6 +67,17 @@ $nav = [
         <h1 class="text-2xl font-semibold tracking-tight"><?= e($title ?? '') ?></h1>
         <a href="<?= e(url('')) ?>" class="btn btn-secondary btn-sm lg:hidden"><i class="bx bx-left-arrow-alt text-base" aria-hidden="true"></i>Messenger</a>
       </div>
+      <?php $clPending = isset($admin['id']) && ($section ?? '') !== 'changelog' ? \App\Services\Changelog::pending((int) $admin['id']) : []; ?>
+      <?php if ($clPending): ?>
+        <section class="card mb-4 border-accent/40 p-5" aria-labelledby="h-cl">
+          <h2 id="h-cl" class="flex items-center gap-2 text-base font-semibold"><i class="bx bx-gift text-xl text-accent" aria-hidden="true"></i>Neu in Version <?= e(APP_VERSION) ?></h2>
+          <?php foreach ($clPending as $cl): ?>
+            <div class="mt-3"><h3 class="text-sm font-semibold">Version <?= e($cl['version']) ?><?= $cl['title'] !== '' ? ' – ' . e($cl['title']) : '' ?></h3>
+              <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-600 dark:text-neutral-300"><?php foreach ($cl['items'] as $it): ?><li><?= \App\Services\Changelog::render($it) ?></li><?php endforeach; ?></ul></div>
+          <?php endforeach; ?>
+          <form method="post" action="<?= e(url('admin/changelog/seen')) ?>" class="mt-4 flex flex-wrap items-center gap-3"><?= \App\Core\Csrf::field() ?><button class="btn btn-primary btn-sm" type="submit">Verstanden</button><a class="text-sm underline" href="<?= e(url('admin/changelog')) ?>">Alle Änderungen</a></form>
+        </section>
+      <?php endif; ?>
       <?php if (($section ?? '') !== 'update' && \App\Services\Updater::available()): ?>
         <div class="alert alert-info" role="status"><i class="bx bx-cloud-download mt-0.5 text-lg" aria-hidden="true"></i><span class="min-w-0 break-words"><strong>Update verfügbar.</strong> <a class="font-medium underline" href="<?= e(url('admin/update')) ?>">Aktualisierung öffnen</a></span></div>
       <?php endif; ?>

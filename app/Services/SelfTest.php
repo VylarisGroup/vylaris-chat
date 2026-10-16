@@ -55,6 +55,7 @@ final class SelfTest
         self::group('Backup, Betrieb und Prüfpaket', self::operations());
         self::group('Lizenz', self::licensing());
         self::group('Aktualisierung', self::updating());
+        self::group('Änderungsprotokoll', self::changelog());
 
         $sum = ['pass' => 0, 'fail' => 0, 'warn' => 0, 'skip' => 0];
         foreach (self::$groups as $g) {
@@ -818,6 +819,31 @@ final class SelfTest
                 $a = License::hwidFor(1);
                 self::ok($a === License::hwidFor(1) && $a !== License::hwidFor(2), 'Kennung nicht stabil/eindeutig.');
                 self::ok(strlen($a) <= 128 && str_starts_with($a, 'u-'), 'Format unerwartet.');
+            },
+        ];
+    }
+
+    private static function changelog(): array
+    {
+        return [
+            'Änderungsprotokoll: Datei lesen' => static function () {
+                $e = Changelog::entries();
+                self::ok($e !== [], 'docs/CHANGELOG.md fehlt oder ist leer.');
+                self::eq(APP_VERSION, $e[0]['version'], 'Neuester Eintrag entspricht der installierten Version');
+                self::ok($e[0]['items'] !== [], 'Eintrag ohne Stichpunkte');
+            },
+            'Änderungsprotokoll: ungesehene Einträge' => static function () {
+                $en = [
+                    ['version' => '1.6.0', 'title' => '', 'items' => ['a']],
+                    ['version' => '1.5.0', 'title' => '', 'items' => ['b']],
+                    ['version' => '1.0.0', 'title' => '', 'items' => ['c']],
+                    ['version' => '2.0.0', 'title' => '', 'items' => ['zukünftig']],
+                ];
+                $v = static fn (?string $seen) => array_column(Changelog::select($en, '1.6.0', $seen), 'version');
+                self::eq(['1.6.0'], $v(null), 'Ohne Vermerk nur der aktuelle Eintrag');
+                self::eq(['1.6.0', '1.5.0'], $v('1.0.0'), 'Seit 1.0.0');
+                self::eq([], $v('1.6.0'), 'Bereits bestätigt');
+                self::eq('<code>x</code> &lt;b&gt;', Changelog::render('`x` <b>'), 'Darstellung maskiert HTML');
             },
         ];
     }

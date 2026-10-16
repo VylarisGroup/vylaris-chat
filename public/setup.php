@@ -310,6 +310,7 @@ function run_install(array $state): array
             Settings::set('smtp_from_name', $s['from_name']);
         }
         $adminId = User::create($org['admin_email'], $org['admin_name'], $state['admin_hash'], 'admin', true);
+        \App\Services\Changelog::markSeen($adminId); // frische Installation: kein «Neu in dieser Version»
         \App\Services\Audit::log('system.installed', $adminId, 'user', $adminId, 'Version ' . APP_VERSION . ', Migrationen: ' . implode(', ', $applied));
 
         // Abschlussprüfung
