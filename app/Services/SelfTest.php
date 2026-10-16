@@ -56,6 +56,7 @@ final class SelfTest
         self::group('Lizenz', self::licensing());
         self::group('Aktualisierung', self::updating());
         self::group('Änderungsprotokoll', self::changelog());
+        self::group('Assistenten', self::wizards());
 
         $sum = ['pass' => 0, 'fail' => 0, 'warn' => 0, 'skip' => 0];
         foreach (self::$groups as $g) {
@@ -819,6 +820,30 @@ final class SelfTest
                 $a = License::hwidFor(1);
                 self::ok($a === License::hwidFor(1) && $a !== License::hwidFor(2), 'Kennung nicht stabil/eindeutig.');
                 self::ok(strlen($a) <= 128 && str_starts_with($a, 'u-'), 'Format unerwartet.');
+            },
+        ];
+    }
+
+    private static function wizards(): array
+    {
+        return [
+            'Assistenten: Definitionen und Ziele' => static function () {
+                $routes = (string) file_get_contents(ROOT_PATH . '/app/routes.php');
+                $icons = (string) @file_get_contents(ROOT_PATH . '/public/assets/vendor/boxicons/css/boxicons.min.css');
+                foreach (Wizards::all() as $key => $w) {
+                    self::ok(str_contains($routes, "'/" . $w['action'] . "'"), "Assistent $key: Ziel /{$w['action']} ist keine Route.");
+                    self::ok($icons === '' || str_contains($icons, 'bx-' . $w['icon'] . ':before'), "Assistent $key: Symbol {$w['icon']} fehlt.");
+                    $names = [];
+                    foreach ($w['steps'] as $st) {
+                        foreach ($st['fields'] as $f) {
+                            self::ok(!empty($f['name']) && !empty($f['label']), "Assistent $key: Feld ohne Name oder Beschriftung.");
+                            self::ok(!isset($names[$f['name']]), "Assistent $key: Feld {$f['name']} doppelt.");
+                            $names[$f['name']] = true;
+                        }
+                    }
+                    self::ok(count($w['steps']) >= 1, "Assistent $key ohne Schritte.");
+                }
+                return count(Wizards::all()) . ' Assistenten';
             },
         ];
     }

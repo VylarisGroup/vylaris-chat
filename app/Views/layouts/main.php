@@ -6,22 +6,39 @@ use App\Services\Settings;
 $company = Settings::get('company_name');
 $v = static fn (string $f): string => (string) @filemtime(ROOT_PATH . '/public/' . $f);
 $privacyOpen = \App\Services\Privacy::openCount();
-$nav = [
-    ['dashboard', 'admin', 'Übersicht', 'grid-alt'],
-    ['users', 'admin/users', 'Benutzer', 'user'],
-    ['groups', 'admin/groups', 'Gruppen', 'group'],
-    ['reports', 'admin/reports', 'Meldungen', 'flag'],
-    ['privacy', 'admin/privacy', 'Datenschutz', 'lock-alt'],
-    ['security', 'admin/security', 'Sicherheit', 'shield-quarter'],
-    ['backup', 'admin/backup', 'Backup', 'archive'],
-    ['operations', 'admin/operations', 'Betrieb', 'pulse'],
-    ['license', 'admin/license', 'Lizenz', 'key'],
-    ['update', 'admin/update', 'Aktualisierung', 'cloud-download'],
-    ['changelog', 'admin/changelog', 'Änderungen', 'news'],
-    ['settings', 'admin/settings', 'Einstellungen', 'cog'],
-    ['tests', 'admin/tests', 'Systemtest', 'check-shield'],
-    ['logs', 'admin/logs', 'Protokoll', 'list-ul'],
+$wizards = \App\Services\Wizards::all();
+$wizItems = [['wizard', 'admin/wizard', 'Alle Assistenten', 'rocket']];
+foreach ($wizards as $wk => $wz) {
+    $wizItems[] = ['wizard:' . $wk, 'admin/wizard/' . $wk, $wz['title'], $wz['icon']];
+}
+// Gruppen der Seitenleiste: [Titel, Symbol, Einträge]; Einträge ohne Titel stehen einzeln.
+$navGroups = [
+    ['', '', [['dashboard', 'admin', 'Übersicht', 'grid-alt']]],
+    ['Verwaltung', 'user', [
+        ['users', 'admin/users', 'Benutzer', 'user'],
+        ['groups', 'admin/groups', 'Gruppen', 'group'],
+        ['reports', 'admin/reports', 'Meldungen', 'flag'],
+    ]],
+    ['Sicherheit & Datenschutz', 'shield-quarter', [
+        ['privacy', 'admin/privacy', 'Datenschutz', 'lock-alt'],
+        ['security', 'admin/security', 'Sicherheit', 'shield-quarter'],
+        ['logs', 'admin/logs', 'Protokoll', 'list-ul'],
+    ]],
+    ['System', 'cog', [
+        ['settings', 'admin/settings', 'Einstellungen', 'cog'],
+        ['backup', 'admin/backup', 'Backup', 'archive'],
+        ['operations', 'admin/operations', 'Betrieb', 'pulse'],
+        ['tests', 'admin/tests', 'Systemtest', 'check-shield'],
+    ]],
+    ['Software', 'package', [
+        ['license', 'admin/license', 'Lizenz', 'key'],
+        ['update', 'admin/update', 'Aktualisierung', 'cloud-download'],
+        ['changelog', 'admin/changelog', 'Änderungen', 'news'],
+    ]],
+    ['Assistenten', 'rocket', $wizItems],
 ];
+$activeKey = ($section ?? '') === 'wizard' && ($name ?? '') !== '' ? 'wizard:' . $name : ($section ?? '');
+$wizFor = \App\Services\Wizards::FOR_SECTION[$section ?? ''] ?? null;
 ?><!doctype html>
 <html lang="de">
 <head>
@@ -33,6 +50,7 @@ $nav = [
   <link rel="stylesheet" href="<?= e(url('assets/css/app.css')) ?>?v=<?= e($v('assets/css/app.css')) ?>">
   <style nonce="<?= e(SecurityHeaders::nonce()) ?>">:root{--accent: <?= e(Settings::accentRgb()) ?>;}</style>
   <script src="<?= e(url('assets/js/theme.js')) ?>"></script>
+  <script src="<?= e(url('assets/js/adminnav.js')) ?>" defer></script>
 </head>
 <body class="min-h-screen bg-slate-100 text-slate-800 antialiased dark:bg-neutral-950 dark:text-neutral-100">
   <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-lg focus:bg-white focus:px-3 focus:py-2">Zum Inhalt springen</a>
@@ -49,15 +67,30 @@ $nav = [
           <p class="text-xs text-slate-500 dark:text-neutral-400">Administration</p>
         </div>
       </div>
-      <nav aria-label="Administration" class="flex gap-1 overflow-x-auto px-3 pb-3 lg:flex-col lg:pb-0">
-        <?php foreach ($nav as [$key, $path, $label, $ic]): ?>
-          <a href="<?= e(url($path)) ?>" <?= $section === $key ? 'aria-current="page"' : '' ?>
-             class="flex shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition <?= $section === $key ? 'bg-accent/10 text-accent' : 'text-slate-600 hover:bg-slate-100 dark:text-neutral-300 dark:hover:bg-neutral-800' ?>">
-            <i class="bx bx-<?= e($ic) ?> text-xl" aria-hidden="true"></i><?= e($label) ?>
-            <?php if ($key === 'privacy' && $privacyOpen > 0): ?><span class="ml-auto rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-white" title="Offene Datenschutzanfragen"><?= (int) $privacyOpen ?></span><?php endif; ?>
-          </a>
+      <details class="px-3 pb-3 lg:pb-0" data-admin-menu open>
+        <summary class="flex cursor-pointer list-none items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-slate-600 lg:hidden dark:text-neutral-300"><i class="bx bx-menu text-xl" aria-hidden="true"></i>Menü</summary>
+      <nav aria-label="Administration" class="flex flex-col gap-1" data-admin-nav>
+        <?php foreach ($navGroups as [$gTitle, $gIcon, $items]):
+          $link = static function (array $it) use ($activeKey, $privacyOpen) {
+              [$key, $path, $label, $ic] = $it; $on = $activeKey === $key;
+              return '<a href="' . e(url($path)) . '"' . ($on ? ' aria-current="page"' : '') . ' class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition ' . ($on ? 'bg-accent/10 text-accent' : 'text-slate-600 hover:bg-slate-100 dark:text-neutral-300 dark:hover:bg-neutral-800') . '"><i class="bx bx-' . e($ic) . ' text-xl" aria-hidden="true"></i>' . e($label)
+                  . ($key === 'privacy' && $privacyOpen > 0 ? '<span class="ml-auto rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-white" title="Offene Datenschutzanfragen">' . (int) $privacyOpen . '</span>' : '') . '</a>';
+          };
+          if ($gTitle === '') { foreach ($items as $it) { echo $link($it); } continue; }
+          $open = false; $badge = 0;
+          foreach ($items as $it) { if ($it[0] === $activeKey || ($it[0] === 'wizard' && ($section ?? '') === 'wizard' && $activeKey === 'wizard')) { $open = true; } if ($it[0] === 'privacy') { $badge = (int) $privacyOpen; } }
+          $gid = preg_replace('/[^a-z]/', '', strtolower($gTitle)); ?>
+          <details class="group" data-nav-group="<?= e($gid) ?>" <?= $open ? 'open data-active="1"' : '' ?>>
+            <summary class="flex cursor-pointer list-none items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:text-neutral-200 dark:hover:bg-neutral-800">
+              <i class="bx bx-<?= e($gIcon) ?> text-xl text-slate-500 dark:text-neutral-400" aria-hidden="true"></i><span><?= e($gTitle) ?></span>
+              <?php if ($badge > 0): ?><span class="ml-auto rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-white" title="Offene Datenschutzanfragen"><?= $badge ?></span><?php endif; ?>
+              <i class="bx bx-chevron-down <?= $badge > 0 ? '' : 'ml-auto ' ?>text-lg text-slate-400 transition group-open:rotate-180" aria-hidden="true"></i>
+            </summary>
+            <div class="mt-0.5 flex flex-col gap-0.5 border-l border-slate-200 pl-3 ml-5 dark:border-neutral-700"><?php foreach ($items as $it) { echo $link($it); } ?></div>
+          </details>
         <?php endforeach; ?>
       </nav>
+      </details>
       <div class="hidden border-t border-slate-200 p-3 lg:mt-6 lg:block dark:border-neutral-800">
         <a href="<?= e(url('')) ?>" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 dark:text-neutral-300 dark:hover:bg-neutral-800"><i class="bx bx-left-arrow-alt text-xl" aria-hidden="true"></i>Zurück zum Messenger</a>
       </div>
@@ -65,6 +98,7 @@ $nav = [
     <main id="main" class="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">
       <div class="mb-6 flex items-center justify-between gap-3">
         <h1 class="text-2xl font-semibold tracking-tight"><?= e($title ?? '') ?></h1>
+        <?php if ($wizFor): ?><a href="<?= e(url('admin/wizard/' . $wizFor)) ?>" class="btn btn-secondary btn-sm ml-auto"><i class="bx bx-rocket text-base" aria-hidden="true"></i>Mit Assistent</a><?php endif; ?>
         <a href="<?= e(url('')) ?>" class="btn btn-secondary btn-sm lg:hidden"><i class="bx bx-left-arrow-alt text-base" aria-hidden="true"></i>Messenger</a>
       </div>
       <?php $clPending = isset($admin['id']) && ($section ?? '') !== 'changelog' ? \App\Services\Changelog::pending((int) $admin['id']) : []; ?>

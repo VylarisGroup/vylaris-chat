@@ -23,6 +23,7 @@ use App\Middleware\Authenticate;
 use App\Controllers\AdminLicenseController;
 use App\Controllers\AdminChangelogController;
 use App\Controllers\AdminUpdateController;
+use App\Controllers\AdminWizardController;
 use App\Middleware\LicenseGate;
 use App\Middleware\ReleaseSession;
 use App\Middleware\RequireAdmin;
@@ -175,6 +176,8 @@ return static function (Router $r): void {
     $r->add('POST', '/admin/license/save', [AdminLicenseController::class, 'save'], $admin);
     $r->add('POST', '/admin/license/check', [AdminLicenseController::class, 'check'], $admin);
     $r->add('POST', '/admin/license/remove', [AdminLicenseController::class, 'remove'], $admin);
+    $r->add('GET', '/admin/wizard', [AdminWizardController::class, 'index'], $admin);
+    $r->add('GET', '/admin/wizard/{name}', [AdminWizardController::class, 'show'], $admin);
     $r->add('GET', '/admin/changelog', [AdminChangelogController::class, 'index'], $admin);
     $r->add('POST', '/admin/changelog/seen', [AdminChangelogController::class, 'seen'], $admin);
     $r->add('GET', '/admin/update', [AdminUpdateController::class, 'index'], $admin);

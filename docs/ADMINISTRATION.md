@@ -108,3 +108,7 @@ Unter *Administration → Aktualisierung* holst du Updates aus einem GitHub-Repo
 ## Lizenz
 
 Unter *Administration → Lizenz* trägst du den Lizenzschlüssel ein, siehst Status, Plätze und freigeschaltete Funktionen. Details: [LIZENZ.md](LIZENZ.md).
+
+## Assistenten
+
+Unter *Administration → Assistenten* gibt es geführte Einrichtungen für: Person hinzufügen, E-Mail-Versand, Einmalanmeldung (SSO), Backup und Lizenz. Jeder Assistent fragt Schritt für Schritt die nötigen Angaben ab, prüft sie, zeigt eine Übersicht und sendet dann an dieselbe Adresse wie das klassische Formular. Die klassischen Seiten bleiben bestehen; der Knopf «Mit Assistent» oben rechts führt von dort zum passenden Assistenten. Neue Assistenten werden in `app/Services/Wizards.php` beschrieben.
