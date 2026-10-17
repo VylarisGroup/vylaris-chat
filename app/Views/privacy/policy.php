@@ -15,6 +15,7 @@ $msgDays = $days('retention_days_messages');
 $auditDays = $days('retention_days_audit');
 $sso = ($s['oidc_enabled'] ?? '0') === '1';
 $push = ($s['push_enabled'] ?? '0') === '1';
+$meets = ($s['meets_enabled'] ?? '0') === '1';
 $backupKeep = max(1, (int) ($s['backup_keep'] ?? 7));
 $updated = trim((string) ($s['privacy_updated_at'] ?? ''));
 $h2 = 'mt-10 scroll-mt-4 text-xl font-semibold tracking-tight';
@@ -119,6 +120,7 @@ $toc = [
       <?php else: ?>Hosting-Anbieter und E-Mail-Versanddienst (SMTP). <em class="text-amber-700 dark:text-amber-400">Konkrete Anbieter noch nicht hinterlegt.</em><?php endif; ?>
       Mit Dienstleistern bestehen Verträge, die sie zur Einhaltung des Datenschutzes verpflichten<?= $ch && $eu ? ' (Art. 9 DSG; Art. 28 DSGVO)' : ($ch ? ' (Art. 9 DSG)' : ' (Art. 28 DSGVO)') ?>. Der E-Mail-Versanddienst erhält E-Mail-Adresse, Name und den Inhalt der Systemmail (nie Nachrichteninhalte).</li>
 <?php if ($push): ?>    <li><strong>Push-Dienste der Browser-Hersteller</strong> (Google, Mozilla, Apple, Microsoft): nur wenn du Push-Benachrichtigungen auf einem Gerät einschaltest. Sie erhalten die Geräteadresse und eine <em>verschlüsselte</em> Nachricht, die nur dein Gerät lesen kann (Standard RFC 8291). Der Nachrichtentext wird nie übertragen; der Hinweistext nennt höchstens den Namen der Person, die dir geschrieben hat.</li>
+<?php endif; ?><?php if ($meets): ?>    <li><strong>Videokonferenz-Dienst (TheRedStonee Meets):</strong> Nur wenn du an einem Videomeeting teilnimmst. Der Anbieter verarbeitet Audio, Video, ggf. Bildschirmfreigabe, deinen Anzeigenamen und deine IP-Adresse, solange das Meeting läuft. Im Messenger werden nur Start, Ende und Teilnehmerzahl des Meetings gespeichert, keine Aufnahmen.</li>
 <?php endif; ?><?php if ($sso): ?>    <li><strong>Identitätsanbieter (SSO):</strong> Bei der Anmeldung per Einmalanmeldung tauschen wir E-Mail-Adresse, Name und eine Kennung mit dem Identitätsanbieter deiner Organisation aus; dessen Datenschutzerklärung gilt für seine Bearbeitung.</li>
 <?php endif; ?>    <li><strong>Lizenzserver:</strong> Zur Prüfung der Lizenz und der Anzahl zugelassener Konten übermittelt dieser Dienst den Lizenzschlüssel der Organisation, eine zufällige, nicht rückrechenbare Platzkennung je aktivem Konto sowie die IP-Adresse des Servers. Namen, E-Mail-Adressen und Nachrichten werden nicht übermittelt.</li>
     <li><strong>Behörden und Gerichte:</strong> nur, soweit wir gesetzlich dazu verpflichtet sind.</li>

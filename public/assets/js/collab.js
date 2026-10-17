@@ -4,6 +4,7 @@ import { api } from './api.js';
 import { store } from './store.js';
 import { renderRich } from './richtext.js';
 import { h, icon, clear, userAvatar, timeOf, fullDate, dayLabel, relativeSeen, url, debounce, copyText } from './util.js';
+import { meetingNode } from './meets.js';
 import { toast, modal, confirmDialog, menu } from './ui.js';
 
 const isGuest = () => store.me?.role === 'guest';
@@ -304,7 +305,7 @@ function threadBubble(m, { root = false } = {}) {
   const own = m.sender?.id === store.me.id;
   const body = m.deleted ? h('p', { class: 'italic opacity-70' }, 'Diese Nachricht wurde gelöscht.')
     : h('div', {},
-      m.kind === 'poll' ? pollNode(m) : m.kind === 'event' ? eventNode(m) : null,
+      m.kind === 'poll' ? pollNode(m) : m.kind === 'event' ? eventNode(m) : m.kind === 'meeting' ? meetingNode(m) : null,
       m.body && m.kind === 'text' ? h('div', { class: 'msg-text text-sm' }, renderRich(m.body, { mentions: m.mentions, selfUsername: store.me.username, own: false })) : null,
       (m.attachments || []).map((a) => h('a', { class: 'mt-1 flex items-center gap-1 text-xs text-accent underline', href: url(`files/${a.id}?download=1`) }, icon('paperclip', 'text-sm'), a.name)));
   const reacts = !m.deleted && m.reactions?.length

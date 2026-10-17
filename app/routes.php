@@ -13,7 +13,9 @@ use App\Controllers\Api\ConversationController;
 use App\Controllers\Api\MeController;
 use App\Controllers\Api\MessageController;
 use App\Controllers\Api\MiscController;
+use App\Controllers\Api\MeetingController;
 use App\Controllers\Api\PollController;
+use App\Controllers\AdminMeetsController;
 use App\Controllers\AuthController;
 use App\Controllers\SecurityController;
 use App\Controllers\Api\TwoFactorApiController;
@@ -105,6 +107,12 @@ return static function (Router $r): void {
     // Ohne Sitzung: der Service Worker erneuert hier seine Push-Adresse (autorisiert über die alte Adresse)
     $r->add('POST', '/api/push/resubscribe', [PushController::class, 'resubscribe']);
     $r->add('GET', '/api/push/key', [PushController::class, 'key']);
+    // Videokonferenzen. Der Webhook kommt vom Meeting-Dienst und ist über die HMAC-Signatur geschützt (keine Sitzung, kein CSRF)
+    $r->add('POST', '/api/conversations/{id}/meeting', [MeetingController::class, 'start'], $api);
+    $r->add('POST', '/api/meetings/{id}/join', [MeetingController::class, 'join'], $api);
+    $r->add('POST', '/api/meetings/{id}/end', [MeetingController::class, 'end'], $api);
+    $r->add('GET', '/api/meetings/{id}', [MeetingController::class, 'status'], $api);
+    $r->add('POST', '/api/meets/webhook', [MeetingController::class, 'webhook']);
     $r->add('GET', '/api/me/2fa', [TwoFactorApiController::class, 'status'], $api);
     $r->add('POST', '/api/me/2fa/recovery', [TwoFactorApiController::class, 'recovery'], $api);
     $r->add('POST', '/api/me/2fa/disable', [TwoFactorApiController::class, 'disable'], $api);
@@ -195,6 +203,9 @@ return static function (Router $r): void {
     $r->add('POST', '/admin/backup/{name}/download', [AdminBackupController::class, 'download'], $admin);
     $r->add('POST', '/admin/backup/{name}/delete', [AdminBackupController::class, 'delete'], $admin);
     $r->add('POST', '/admin/backup/{name}/verify', [AdminBackupController::class, 'verify'], $admin);
+    $r->add('GET', '/admin/meets', [AdminMeetsController::class, 'index'], $admin);
+    $r->add('POST', '/admin/meets/save', [AdminMeetsController::class, 'save'], $admin);
+    $r->add('POST', '/admin/meets/test', [AdminMeetsController::class, 'test'], $admin);
     $r->add('GET', '/admin/license', [AdminLicenseController::class, 'index'], $admin);
     $r->add('POST', '/admin/license/save', [AdminLicenseController::class, 'save'], $admin);
     $r->add('POST', '/admin/license/check', [AdminLicenseController::class, 'check'], $admin);

@@ -32,6 +32,7 @@ final class Retention
         RateLimiter::purgeOld();
         $stats['drafts'] = Drafts::purgeOld();
         $stats['guests_expired'] = Auth::expireGuests();
+        $stats['meetings_expired'] = Meets::expireOld();
         $stats['notifications'] = Database::exec('DELETE FROM notifications WHERE read_at IS NOT NULL AND read_at < ?', [gmdate('Y-m-d H:i:s', time() - 30 * 86400)]);
         $stats['tokens'] = Database::exec('DELETE FROM password_resets WHERE expires_at < ?', [gmdate('Y-m-d H:i:s', time() - 30 * 86400)])
             + Database::exec('DELETE FROM email_verifications WHERE expires_at < ?', [gmdate('Y-m-d H:i:s', time() - 30 * 86400)])

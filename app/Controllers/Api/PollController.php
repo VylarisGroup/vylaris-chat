@@ -139,6 +139,7 @@ final class PollController extends Controller
                 case 'message.reaction':
                 case 'message.poll':
                 case 'message.event':
+                case 'message.meeting':
                 case 'message.thread':
                     $messageIds[$mid] = true;
                     $convIds[$cid] = true;

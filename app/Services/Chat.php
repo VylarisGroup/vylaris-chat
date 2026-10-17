@@ -424,6 +424,8 @@ final class Chat
                     $text = 'Umfrage: ' . $text;
                 } elseif ($lm['deleted_at'] === null && $lm['kind'] === 'event') {
                     $text = 'Termin: ' . $text;
+                } elseif ($lm['deleted_at'] === null && $lm['kind'] === 'meeting') {
+                    $text = 'Videomeeting';
                 }
                 $preview = [
                     'text' => $text,

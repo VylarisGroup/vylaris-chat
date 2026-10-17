@@ -102,6 +102,7 @@ async function main() {
   });
   for (const c of boot.conversations) store.upsertConversation(c);
   store.ready = true;
+  store.meets = boot.meets || null;
   store.license = boot.license || { read_only: false, features: [] };
   if (store.license.read_only) {
     const row = app.firstElementChild;

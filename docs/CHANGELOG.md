@@ -1,5 +1,14 @@
 # Änderungen
 
+## 1.10.0 – Videokonferenzen (TheRedStonee Meets)
+
+* **Videomeetings im Chat:** Über das Kamera-Symbol in der Kopfzeile startest du ein Meeting. Es erscheint als Karte im Verlauf («Videomeeting läuft») mit Live-Anzeige, wie viele Personen gerade teilnehmen, und einem Knopf zum Beitreten.
+* **Eingebettet im Messenger:** Das Meeting öffnet sich als Overlay direkt im Messenger (auf dem Handy als Vollbild). Es lässt sich minimieren, während du weiter chattest, und über «Verlassen» schliessen.
+* **Berechtigungen:** In Direktchats darf jede Person ein Meeting starten, in Gruppen nur die Moderation. Gäste können beitreten, aber nicht starten. Beenden darf, wer das Meeting gestartet hat, sowie die Moderation. Pro Unterhaltung läuft höchstens ein Meeting; ein Meeting endet spätestens nach 8 Stunden.
+* **Administration:** Neue Seite «Videokonferenzen» (API-Schlüssel und Webhook-Geheimnis verschlüsselt gespeichert, Verbindungstest, Hinweise zur Einrichtung beim Anbieter).
+* Die Funktion ist standardmässig aus. Voraussetzung ist ein API-Schlüssel von TheRedStonee, der den Messenger als erlaubte Einbettungs-Domain eingetragen hat. Das Meeting-Chat des Anbieters wird nicht in den Messenger gespiegelt.
+* Datenbank-Migration 009 (automatisch beim Update).
+
 ## 1.9.0 – Zusammenarbeit: Threads, Umfragen, Termine, Entwürfe, Gäste
 
 * **Threads:** Auf jede Nachricht lässt sich in einem eigenen Verlauf antworten. Die Hauptansicht bleibt aufgeräumt, unter der Nachricht steht «N Antworten» mit den Beteiligten. Beteiligte werden über neue Antworten benachrichtigt.

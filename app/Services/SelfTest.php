@@ -30,7 +30,7 @@ final class SelfTest
         'message_reactions', 'message_attachments', 'message_mentions', 'message_reports', 'notifications', 'invitations',
         'password_resets', 'email_verifications', 'audit_logs', 'system_settings', 'rate_limits', 'events', 'typing_state',
         'privacy_requests', 'schema_migrations', 'user_recovery_codes', 'push_subscriptions', 'jobs', 'data_breaches',
-        'polls', 'poll_options', 'poll_votes', 'calendar_events', 'event_rsvps', 'drafts',
+        'polls', 'poll_options', 'poll_votes', 'calendar_events', 'event_rsvps', 'drafts', 'meetings',
     ];
 
     /** @var array<int,array{title:string,tests:array<int,array{name:string,status:string,detail:string,ms:int}>}> */
@@ -54,6 +54,7 @@ final class SelfTest
         self::group('Anwendungslogik (Testdaten, wird zurückgerollt)', self::logic(), true);
         self::group('Zwei-Faktor, SSO, Push, Hintergrundaufträge (Testdaten, wird zurückgerollt)', self::advancedLogic(), true);
         self::group('Zusammenarbeit: Threads, Umfragen, Termine, Entwürfe, Gäste (Testdaten, wird zurückgerollt)', self::collaboration(), true);
+        self::group('Videokonferenzen (Testdaten, wird zurückgerollt)', self::meetings(), true);
         self::group('Backup, Betrieb und Prüfpaket', self::operations());
         self::group('Lizenz', self::licensing());
         self::group('Aktualisierung', self::updating());
@@ -403,7 +404,7 @@ final class SelfTest
             'Zustandsändernde Routen sind CSRF-geschützt' => static function () use ($router) {
                 $bad = [];
                 // Bewusste Ausnahme: Der Service Worker hat weder Sitzung noch CSRF-Token (Adresserneuerung, autorisiert über die alte Push-Adresse).
-                $allowed = ['#^/api/push/resubscribe$#'];
+                $allowed = ['#^/api/push/resubscribe$#', '#^/api/meets/webhook$#'];
                 foreach ($router()->all() as $r) {
                     if (in_array($r['regex'], $allowed, true)) {
                         continue;
@@ -431,7 +432,7 @@ final class SelfTest
             'Alle API-Routen erfordern Anmeldung' => static function () use ($router) {
                 $bad = [];
                 // Bewusste Ausnahmen für den Service Worker: öffentlicher VAPID-Schlüssel und Adresserneuerung (Rate-Limit, Autorisierung über die alte Adresse).
-                $allowed = ['#^/api/push/resubscribe$#', '#^/api/push/key$#'];
+                $allowed = ['#^/api/push/resubscribe$#', '#^/api/push/key$#', '#^/api/meets/webhook$#'];
                 foreach ($router()->all() as $r) {
                     if (in_array($r['regex'], $allowed, true)) {
                         continue;
@@ -666,6 +667,45 @@ final class SelfTest
     }
 
     // ------------------------------------------- Threads, Umfragen, Termine, Gäste
+
+    private static function meetings(): array
+    {
+        return [
+            'Berechtigungen: Direktchat alle, Gruppe nur Moderation, Gäste nie' => static function () {
+                $conv = ['direct' => ['type' => 'direct'], 'group' => ['type' => 'group']];
+                $m = static fn (string $role) => ['role' => $role];
+                self::ok(Meets::canHost(['role' => 'member'], $m('member'), $conv['direct']), 'Direktchat-Mitglied');
+                self::ok(!Meets::canHost(['role' => 'member'], $m('member'), $conv['group']), 'Gruppen-Mitglied darf nicht starten');
+                self::ok(Meets::canHost(['role' => 'member'], $m('moderator'), $conv['group']), 'Moderation darf starten');
+                self::ok(Meets::canHost(['role' => 'member'], $m('admin'), $conv['group']), 'Gruppen-Admin darf starten');
+                self::ok(!Meets::canHost(['role' => 'guest'], $m('admin'), $conv['direct']), 'Gast darf nie starten');
+            },
+            'Webhook: Signatur, Zeitstempel und Idempotenz' => static function () {
+                $a = self::newUser('MA');
+                $b = self::newUser('MB');
+                $cid = Chat::createGroup((int) $a['id'], 'Selftest Meeting', '', [(int) $b['id']]);
+                $row = Messages::create($a, $cid, 'Videomeeting gestartet', null, null, false, static function (int $mid) use ($cid, $a): void {
+                    Database::insert('INSERT INTO meetings (conversation_id, message_id, room_code, started_by, started_at, expires_at) VALUES (?,?,?,?,?,?)', [$cid, $mid, 'selftest-room', (int) $a['id'], now(), gmdate('Y-m-d H:i:s', time() + 3600)]);
+                }, 'meeting');
+                Settings::set('meets_webhook_secret_enc', Crypto::encrypt('whsec_selftest_secret'));
+                $body = json_encode(['event' => 'room.ended', 'data' => ['room' => ['code' => 'selftest-room'], 'reason' => 'host']]);
+                $ts = (string) time();
+                $sig = static fn (string $t, string $b, string $k = 'whsec_selftest_secret') => 'sha256=' . hash_hmac('sha256', $t . '.' . $b, $k);
+                self::eq(401, Meets::handleWebhook($body, $ts, $sig($ts, $body, 'falsch')), 'Falsches Geheimnis');
+                self::eq(401, Meets::handleWebhook($body, (string) (time() - 900), $sig((string) (time() - 900), $body)), 'Alter Zeitstempel');
+                self::eq(401, Meets::handleWebhook($body . ' ', $ts, $sig($ts, $body)), 'Veränderter Rumpf');
+                self::eq(401, Meets::handleWebhook($body, 'abc', 'x'), 'Ungültiger Zeitstempel');
+                self::ok(Database::value('SELECT ended_at FROM meetings WHERE message_id = ?', [self::msgId(['message' => $row])]) === null, 'Meeting trotz ungültiger Aufrufe beendet');
+                self::eq(204, Meets::handleWebhook($body, $ts, $sig($ts, $body)), 'Gültiger Aufruf');
+                self::eq(204, Meets::handleWebhook($body, $ts, $sig($ts, $body)), 'Doppelte Zustellung');
+                self::eq('host', (string) Database::value('SELECT ended_reason FROM meetings WHERE room_code = ?', ['selftest-room']), 'Beendigungsgrund');
+                $other = json_encode(['event' => 'room.ended', 'data' => ['room' => ['code' => 'unbekannt']]]);
+                self::eq(204, Meets::handleWebhook($other, $ts, $sig($ts, $other)), 'Fremder Raum wird ignoriert');
+                $view = Meets::views([$row], (int) $b['id']);
+                self::ok(!reset($view)['active'], 'Ansicht zeigt beendetes Meeting als aktiv');
+            },
+        ];
+    }
 
     private static function collaboration(): array
     {

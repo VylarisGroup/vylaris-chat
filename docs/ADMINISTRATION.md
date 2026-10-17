@@ -22,6 +22,10 @@ Kennzahlen (Benutzer, Gruppen, Nachrichten, Dateien, offene Meldungen), Systemzu
 - **Entwürfe:** Werden bis zu 30 Tage serverseitig gespeichert, damit sie auf allen Geräten verfügbar sind.
 - Der Kalender-Link ist öffentlich erreichbar (ohne Anmeldung), aber nur mit dem 48-stelligen Schlüssel; Fehlversuche werden je IP-Adresse begrenzt.
 
+## Videokonferenzen
+
+Unter *System → Videokonferenzen* trägst du den API-Schlüssel (`trsm_…`) und das Webhook-Geheimnis (`whsec_…`) von TheRedStonee Meets ein und aktivierst die Funktion. Beim Anbieter müssen zwei Dinge hinterlegt sein: die Adresse dieses Messengers als erlaubte Einbettungs-Domain (`embedOrigins`) und die auf der Seite angezeigte Webhook-Adresse (`…/api/meets/webhook`). «Verbindung testen» prüft Schlüssel, Einbettungs-Domain und Webhook. Ein Schlüssel erlaubt standardmässig 20 gleichzeitige Räume, ein Meeting pro Unterhaltung. Datenschutz: Der Anbieter verarbeitet Audio, Video, Namen und IP-Adressen; einen Auftragsverarbeitungsvertrag abschliessen.
+
 ## Gruppen
 
 Liste aller Gruppen mit Mitgliederzahl und Nachrichtenanzahl. **Es werden keine Nachrichten angezeigt.** In der Detailansicht kannst du in Notfällen (Gruppe ohne aktiven Administrator) ein bestehendes Mitglied zum Gruppenadministrator ernennen. Die Ernennung wird im Audit-Log festgehalten und der Gruppe als Systemhinweis angezeigt.

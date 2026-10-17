@@ -170,6 +170,7 @@ final class Messages
         // Umfragen und Termine
         $pollViews = Polls::views(array_values(array_filter($rows, fn ($r) => $r['kind'] === 'poll' && $r['deleted_at'] === null)), $viewerId);
         $eventViews = Calendar::views(array_values(array_filter($rows, fn ($r) => $r['kind'] === 'event' && $r['deleted_at'] === null)), $viewerId);
+        $meetingViews = Meets::views(array_values(array_filter($rows, fn ($r) => $r['kind'] === 'meeting' && $r['deleted_at'] === null)), $viewerId);
 
         // Lesestatus nur für eigene Nachrichten
         $ownIds = array_values(array_map(fn ($r) => (int) $r['id'], array_filter($rows, fn ($r) => (int) $r['sender_id'] === $viewerId && $r['kind'] !== 'system' && $r['deleted_at'] === null)));
@@ -240,6 +241,7 @@ final class Messages
                 'thread' => $threads[$id] ?? null,
                 'poll' => $deleted ? null : ($pollViews[$id] ?? null),
                 'event' => $deleted ? null : ($eventViews[$id] ?? null),
+                'meeting' => $deleted ? null : ($meetingViews[$id] ?? null),
                 'reply_to' => $r['reply_to_id'] ? ($replies[(int) $r['reply_to_id']] ?? ['id' => (int) $r['reply_to_id'], 'sender_name' => 'Unbekannt', 'text' => '', 'deleted' => true]) : null,
                 'reactions' => $reactionList,
                 'attachments' => $deleted ? [] : ($attachments[$id] ?? []),

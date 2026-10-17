@@ -47,6 +47,11 @@ final class Request
         return (string) ($this->server[$key] ?? '');
     }
 
+    public function rawBody(): string
+    {
+        return $this->rawBody;
+    }
+
     public function wantsJson(): bool
     {
         return $this->isApi() || str_contains($this->header('Accept'), 'application/json');

@@ -9,6 +9,7 @@ import {
 } from './util.js';
 import { toast, confirmDialog, menu, emojiPicker, closeMenu, skeletonMessages } from './ui.js';
 import { forwardDialog, reportDialog, lightbox } from './dialogs.js';
+import { meetingNode, canStartMeeting, startMeeting } from './meets.js';
 import { pollNode, eventNode, pollDialog, eventDialog, threadSummary, openThread, closeThread, threadMessage, threadIsOpenFor, queueDraft, canCreate } from './collab.js';
 
 const PAGE = 40;
@@ -123,6 +124,7 @@ function renderHeader() {
       h('span', { class: 'min-w-0' },
         h('span', { class: 'flex items-center gap-1.5 truncate text-sm font-semibold' }, h('span', { class: 'truncate' }, c.name), c.muted ? icon('bell-off', 'text-sm text-slate-400') : null, c.pinned ? icon('pin', 'text-sm text-slate-400') : null),
         h('span', { class: 'block truncate text-xs text-slate-500 dark:text-neutral-400' }, sub))),
+    canStartMeeting(c) ? h('button', { class: 'btn-icon', 'aria-label': 'Videomeeting starten', title: 'Videomeeting starten', onclick: () => startMeeting(c.id) }, icon('video')) : null,
     h('button', { class: 'btn-icon', 'aria-label': 'In dieser Unterhaltung suchen', title: 'In dieser Unterhaltung suchen', onclick: () => store.emit('search-in', c.id) }, icon('search')),
     h('button', { class: `btn-icon ${store.detailsOpen ? 'bg-slate-100 text-accent dark:bg-neutral-800' : ''}`, 'aria-label': 'Details', 'aria-pressed': String(store.detailsOpen), title: 'Details ein-/ausblenden', onclick: toggleDetails }, icon('info-circle')),
     h('button', { class: 'btn-icon', 'aria-label': 'Weitere Aktionen', 'aria-haspopup': 'menu', onclick: (e) => convMenu(c, e.currentTarget) }, icon('dots-vertical-rounded')));
@@ -454,7 +456,7 @@ function messageNode(m, { continues, last, group }) {
   }
   const own = m.sender && m.sender.id === store.me.id;
   const showHead = !continues;
-  const isCard = (m.kind === 'poll' || m.kind === 'event') && !m.deleted;
+  const isCard = (m.kind === 'poll' || m.kind === 'event' || m.kind === 'meeting') && !m.deleted;
   const bubbleCls = own && !isCard
     ? 'bg-accent text-white'
     : 'border border-slate-200 bg-white text-slate-800 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100';
@@ -476,6 +478,7 @@ function messageNode(m, { continues, last, group }) {
     }
     if (m.kind === 'poll') body.append(pollNode(m));
     else if (m.kind === 'event') body.append(eventNode(m));
+    else if (m.kind === 'meeting') body.append(meetingNode(m));
     else if (m.body) {
       body.append(h('div', { class: 'msg-text' }, renderRich(m.body, { mentions: m.mentions, selfUsername: store.me.username, own })));
       const link = firstLink(m.body);
@@ -509,7 +512,7 @@ function messageNode(m, { continues, last, group }) {
   const row = h('div', {
     class: `flex ${own ? 'justify-end' : 'justify-start'} ${continues ? 'mt-0.5' : 'mt-3'} transition`,
     'data-mid': m.id, role: 'article', tabindex: '0',
-    'aria-label': `${own ? 'Du' : (m.sender?.display_name || 'Unbekannt')}, ${fullDate(m.created_at)}: ${m.deleted ? 'gelöscht' : (m.kind === 'poll' ? `Umfrage: ${m.poll?.question || ''}` : m.kind === 'event' ? `Termin: ${m.event?.title || ''}` : m.body.slice(0, 200))}`,
+    'aria-label': `${own ? 'Du' : (m.sender?.display_name || 'Unbekannt')}, ${fullDate(m.created_at)}: ${m.deleted ? 'gelöscht' : (m.kind === 'poll' ? `Umfrage: ${m.poll?.question || ''}` : m.kind === 'event' ? `Termin: ${m.event?.title || ''}` : m.kind === 'meeting' ? 'Videomeeting' : m.body.slice(0, 200))}`,
     onkeydown: (e) => { if (e.key === 'Enter' && e.target === row && !m.deleted && !m._pending) { e.preventDefault(); messageMenu(m, row); } },
   }, avatarCol, col);
 
