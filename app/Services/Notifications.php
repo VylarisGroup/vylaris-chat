@@ -111,6 +111,56 @@ final class Notifications
         }
     }
 
+    /**
+     * Antwort in einem Thread: Benachrichtigt die Person der Ursprungsnachricht, bisherige Teilnehmende und Erwähnte.
+     * Die übrigen Mitglieder der Unterhaltung erfahren davon nichts (der Hauptverlauf bleibt ruhig).
+     * @param int[] $mentionedIds
+     */
+    public static function forThreadReply(array $msg, array $sender, array $mentionedIds, int $rootId): void
+    {
+        $convId = (int) $msg['conversation_id'];
+        $conv = Chat::conversation($convId);
+        $root = Database::one('SELECT id, sender_id FROM messages WHERE id = ?', [$rootId]);
+        if (!$conv || !$root) {
+            return;
+        }
+        $senderId = (int) $sender['id'];
+        $participants = array_map('intval', array_column(Database::all(
+            'SELECT DISTINCT sender_id FROM messages WHERE thread_root_id = ? AND sender_id IS NOT NULL AND deleted_at IS NULL',
+            [$rootId]
+        ), 'sender_id'));
+        if ($root['sender_id'] !== null) {
+            $participants[] = (int) $root['sender_id'];
+        }
+        $wanted = array_values(array_diff(array_unique(array_merge($participants, array_map('intval', $mentionedIds))), [$senderId]));
+        if (!$wanted) {
+            return;
+        }
+        $members = Database::all(
+            'SELECT cm.user_id, cm.muted, u.processing_restricted_at, u.last_visible_at
+             FROM conversation_members cm JOIN users u ON u.id = cm.user_id
+             WHERE cm.conversation_id = ? AND cm.left_at IS NULL AND u.is_active = 1 AND cm.user_id IN (' . Database::in($wanted) . ')',
+            array_merge([$convId], $wanted)
+        );
+        $senderName = (string) $sender['display_name'];
+        $convName = $conv['type'] === 'direct' ? $senderName : (string) $conv['name'];
+        foreach ($members as $m) {
+            $uid = (int) $m['user_id'];
+            $mentioned = in_array($uid, array_map('intval', $mentionedIds), true);
+            if ((int) $m['muted'] && !$mentioned) {
+                continue;
+            }
+            $text = $mentioned ? $senderName . ' hat dich in einem Thread in „' . $convName . '“ erwähnt.' : $senderName . ' hat in einem Thread geantwortet.';
+            self::create($uid, $mentioned ? 'mention' : 'message', $senderId, $convId, (int) $msg['id'], $text);
+            if ($m['processing_restricted_at'] === null) {
+                $visible = !empty($m['last_visible_at']) && (time() - strtotime($m['last_visible_at'] . ' UTC')) < Push::VISIBLE_WINDOW;
+                if (!$visible) {
+                    Push::notify($uid, Push::payload($uid, $text, $convId, (int) $msg['id']));
+                }
+            }
+        }
+    }
+
     public static function listFor(int $userId, int $limit = 30): array
     {
         $rows = Database::all(

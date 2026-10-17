@@ -37,6 +37,12 @@ $when = static fn (array $f): string => !empty($f['when']) ? ' data-when="' . e(
 <?php elseif ($type === 'select'): ?>
           <label class="label" for="<?= e($id) ?>"><?= e($f['label']) ?></label>
           <select id="<?= e($id) ?>" class="input" data-field="<?= e($f['name']) ?>"<?= $meta ?><?= $attrs ?>><?php foreach ($f['options'] as $ov => $ol): ?><option value="<?= e((string) $ov) ?>" <?= (string) $ov === $val ? 'selected' : '' ?>><?= e($ol) ?></option><?php endforeach; ?></select>
+<?php elseif ($type === 'checks'): ?>
+          <fieldset><legend class="label"><?= e($f['label']) ?></legend><div class="max-h-48 space-y-1 overflow-y-auto rounded-xl border border-slate-200 p-2 dark:border-neutral-700">
+<?php foreach ($f['options'] as $ov => $ol): ?>
+            <label class="flex items-start gap-2 px-1 py-1 text-sm"><input type="checkbox" name="<?= e($f['name']) ?>" value="<?= e((string) $ov) ?>" data-checks="<?= e($f['label']) ?>" data-text="<?= e($ol) ?>" class="<?= $box ?>"><span><?= e($ol) ?></span></label>
+<?php endforeach; ?>
+          </div></fieldset>
 <?php elseif ($type === 'checkbox'): ?>
           <label class="flex items-start gap-2 text-sm"><input id="<?= e($id) ?>" type="checkbox" value="1" class="<?= $box ?>" data-field="<?= e($f['name']) ?>"<?= $meta ?><?= $attrs ?> <?= $val === '1' ? 'checked' : '' ?>><span><?= e($f['label']) ?></span></label>
 <?php else: ?>

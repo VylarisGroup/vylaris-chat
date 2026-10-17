@@ -9,6 +9,7 @@ import {
 } from './util.js';
 import { toast, confirmDialog, menu, emojiPicker, closeMenu, skeletonMessages } from './ui.js';
 import { forwardDialog, reportDialog, lightbox } from './dialogs.js';
+import { pollNode, eventNode, pollDialog, eventDialog, threadSummary, openThread, closeThread, threadMessage, threadIsOpenFor, queueDraft, canCreate } from './collab.js';
 
 const PAGE = 40;
 let root; // Hauptbereich
@@ -26,7 +27,7 @@ export function initChat(container) {
     h('div', {},
       h('h2', { class: 'text-lg font-semibold tracking-tight' }, 'Wähle eine Unterhaltung'),
       h('p', { class: 'mt-1 max-w-xs text-sm text-slate-500 dark:text-neutral-400' }, 'Starte einen neuen Chat oder öffne eine bestehende Unterhaltung in der Seitenleiste.')),
-    h('button', { class: 'btn btn-primary', onclick: () => store.emit('new-chat') }, icon('plus', 'text-lg'), 'Neue Unterhaltung'));
+    h('button', { class: 'btn btn-primary', hidden: store.me?.role === 'guest' || null, onclick: () => store.emit('new-chat') }, icon('plus', 'text-lg'), 'Neue Unterhaltung'));
 
   el.header = h('header', { class: 'flex h-16 shrink-0 items-center gap-3 border-b border-slate-200 bg-white/80 px-3 backdrop-blur sm:px-4 dark:border-neutral-800 dark:bg-neutral-900/80' });
   el.banner = h('div', { class: 'hidden items-center justify-center gap-2 bg-amber-100 px-3 py-1.5 text-xs font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200', role: 'status' }, icon('wifi-off', 'text-base'), 'Keine Verbindung: Nachrichten werden gesendet, sobald die Verbindung wieder steht.');
@@ -65,8 +66,38 @@ export function initChat(container) {
   store.on('conversations', () => { if (store.activeId) renderHeader(); });
   store.on('typing', renderTyping);
   store.on('online', (on) => { el.banner.classList.toggle('hidden', on); el.banner.classList.toggle('flex', !on); if (on) retryFailed(); });
-  store.on('open-conversation', ({ id, around }) => openConversation(id, { around }));
+  store.on('open-conversation', async ({ id, around }) => {
+    if (around) {
+      // Antworten in Threads liegen nicht im Hauptverlauf: stattdessen den Thread öffnen
+      try {
+        const res = await api.get(`/api/messages/${around}`);
+        if (res.message?.thread_root_id) { await openConversation(id, { focus: false }); openThread(id, res.message.thread_root_id); return; }
+      } catch { /* normal weiter */ }
+    }
+    openConversation(id, { around });
+  });
   store.on('details-changed', renderHeader);
+  store.on('message-update', (m) => applyMessageUpdate(m));
+  store.on('message-new', (m) => applyOwnNew(m));
+  store.on('draft-remote', (cid) => { if (cid === view.convId && !view.editing) restoreDraft(); });
+}
+
+/** Geänderte Nachricht (Umfrage, Termin …) in den Verlauf übernehmen. */
+function applyMessageUpdate(m) {
+  const cache = store.msgs.get(m.conversation_id);
+  if (m.thread_root_id) { threadMessage(m); return; }
+  if (cache) { mergeMessage(cache, m); if (view.convId === m.conversation_id) renderList('keep'); }
+  threadMessage(m);
+}
+
+/** Eigene neue Nachricht (Umfrage/Termin) anhängen und ans Ende springen. */
+function applyOwnNew(m) {
+  const cache = store.cache(m.conversation_id);
+  if (cache.hasAfter) { cache.loaded = false; cache.items = []; cache.hasAfter = false; }
+  mergeMessage(cache, m);
+  const c = store.conv(m.conversation_id);
+  if (c) { c.last_read_message_id = Math.max(c.last_read_message_id, m.id); c.last_message_at = m.created_at; store.emit('conversations'); }
+  if (view.convId === m.conversation_id) renderList('bottom');
 }
 
 const hasFiles = (e) => e.dataTransfer && [...e.dataTransfer.types].includes('Files');
@@ -98,6 +129,7 @@ function renderHeader() {
 }
 
 function toggleDetails() {
+  if (store.thread) closeThread();
   store.detailsOpen = !store.detailsOpen;
   store.emit('details-toggle');
   renderHeader();
@@ -160,6 +192,7 @@ export async function openConversation(id, { around = null, focus = true } = {})
   el.chat.classList.replace('hidden', 'flex');
   store.typing = { conversation_id: id, names: [] };
   renderTyping();
+  if (el.pollTool) { el.pollTool.hidden = !canCreate(); el.eventTool.hidden = !canCreate(); }
   store.emit('active');
   store.emit('mobile-view');
   renderHeader();
@@ -246,10 +279,19 @@ function mergeMessage(cache, m) {
 }
 
 /** Wird vom Poll aufgerufen. Gibt neu eingetroffene fremde Nachrichten zurück. */
+const seenIds = new Set();
 export function applyPolledMessages(list) {
   const incoming = [];
   const touched = new Set();
   for (const m of list) {
+    if (m.thread_root_id) {
+      // Antworten in Threads gehören nicht in den Hauptverlauf
+      threadMessage(m);
+      const known = store.msgs.get(m.conversation_id)?.items.find((x) => x.id === m.thread_root_id);
+      if (known && !known.thread) known.thread = { count: 1, last_id: m.id, last_at: m.created_at, participants: [m.sender].filter(Boolean) };
+      if (m.sender && m.sender.id !== store.me.id && !m.deleted && !threadIsOpenFor(m.thread_root_id) && !seenIds.has(m.id)) { seenIds.add(m.id); incoming.push(m); }
+      continue;
+    }
     const cache = store.msgs.get(m.conversation_id);
     if (!cache || !cache.loaded) { if (m.sender && m.sender.id !== store.me.id && !m.deleted) incoming.push(m); continue; }
     // Nur anhängen, wenn der Verlauf am Ende ist (sonst Lücke)
@@ -257,7 +299,7 @@ export function applyPolledMessages(list) {
     if (!exists && cache.hasAfter) continue;
     const added = mergeMessage(cache, m);
     touched.add(m.conversation_id);
-    if (added && m.sender && m.sender.id !== store.me.id && m.kind === 'text') incoming.push(m);
+    if (added && m.sender && m.sender.id !== store.me.id && m.kind !== 'system') incoming.push(m);
   }
   if (touched.has(view.convId)) {
     const stick = nearBottom();
@@ -302,7 +344,7 @@ function renderList(mode = 'keep') {
     if (!prev || dayKey(prev.created_at) !== dayKey(m.created_at)) {
       el.list.append(h('div', { class: 'sticky top-0 z-[5] my-3 flex justify-center' }, h('span', { class: 'rounded-full bg-white/90 px-3 py-1 text-[11px] font-medium text-slate-500 shadow-sm backdrop-blur dark:bg-neutral-800/90 dark:text-neutral-400' }, dayLabel(m.created_at))));
     }
-    if (!separatorDone && !m._pending && m.id > cache.lastReadAtOpen && m.sender && m.sender.id !== selfId && m.kind === 'text') {
+    if (!separatorDone && !m._pending && m.id > cache.lastReadAtOpen && m.sender && m.sender.id !== selfId && m.kind !== 'system') {
       separatorDone = true;
       el.list.append(h('div', { class: 'my-3 flex items-center gap-3 text-xs font-semibold text-accent', id: 'unread-separator', role: 'separator' },
         h('span', { class: 'h-px flex-1 bg-accent/40' }), 'Ungelesene Nachrichten', h('span', { class: 'h-px flex-1 bg-accent/40' })));
@@ -412,11 +454,12 @@ function messageNode(m, { continues, last, group }) {
   }
   const own = m.sender && m.sender.id === store.me.id;
   const showHead = !continues;
-  const bubbleCls = own
+  const isCard = (m.kind === 'poll' || m.kind === 'event') && !m.deleted;
+  const bubbleCls = own && !isCard
     ? 'bg-accent text-white'
     : 'border border-slate-200 bg-white text-slate-800 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100';
   const corner = own ? (last ? 'rounded-br-md' : '') : (last ? 'rounded-bl-md' : '');
-  const body = h('div', { class: `relative min-w-0 max-w-full rounded-2xl px-3.5 py-2 text-sm shadow-sm ${bubbleCls} ${corner}` });
+  const body = h('div', { class: `relative min-w-0 max-w-full rounded-2xl px-3.5 py-2 text-sm shadow-sm ${bubbleCls} ${corner} ${isCard ? 'w-[22rem]' : ''}` });
 
   if (m.deleted) {
     body.append(h('p', { class: 'flex items-center gap-1.5 italic opacity-70' }, icon('block', 'text-base'), 'Diese Nachricht wurde gelöscht.'));
@@ -431,14 +474,16 @@ function messageNode(m, { continues, last, group }) {
     if (group && !own && showHead) {
       body.append(h('p', { class: 'mb-0.5 text-xs font-semibold text-accent' }, m.sender?.display_name || 'Unbekannt'));
     }
-    if (m.body) {
+    if (m.kind === 'poll') body.append(pollNode(m));
+    else if (m.kind === 'event') body.append(eventNode(m));
+    else if (m.body) {
       body.append(h('div', { class: 'msg-text' }, renderRich(m.body, { mentions: m.mentions, selfUsername: store.me.username, own })));
       const link = firstLink(m.body);
       if (link) body.append(linkCard(link, own));
     }
     for (const a of m.attachments) body.append(attachmentNode(a, own));
   }
-  const meta = h('div', { class: `mt-1 flex items-center justify-end gap-1.5 text-[11px] ${own ? 'text-white/75' : 'text-slate-400'}` },
+  const meta = h('div', { class: `mt-1 flex items-center justify-end gap-1.5 text-[11px] ${own && !isCard ? 'text-white/75' : 'text-slate-400'}` },
     m.edited_at && !m.deleted ? h('span', { title: `Bearbeitet ${fullDate(m.edited_at)}` }, 'bearbeitet') : null,
     h('time', { datetime: m.created_at || '', title: fullDate(m.created_at) }, timeOf(m.created_at)),
     own && !m.deleted ? statusIcon(m) : null);
@@ -455,15 +500,16 @@ function messageNode(m, { continues, last, group }) {
   const toolbar = (!m.deleted && !m._pending) ? h('div', { class: `absolute -top-4 ${own ? 'right-2' : 'left-2'} z-[6] hidden items-center rounded-lg border border-slate-200 bg-white p-0.5 shadow-soft group-focus-within:flex group-hover:flex dark:border-neutral-700 dark:bg-neutral-800` },
     h('button', { class: 'btn-icon h-7 w-7 text-lg', 'aria-label': 'Reagieren', title: 'Reagieren', onclick: (e) => reactionPicker(m, e.currentTarget) }, icon('smile')),
     h('button', { class: 'btn-icon h-7 w-7 text-lg', 'aria-label': 'Antworten', title: 'Antworten', onclick: () => startReply(m) }, icon('reply')),
+    h('button', { class: 'btn-icon h-7 w-7 text-lg', 'aria-label': 'Im Thread antworten', title: 'Im Thread antworten', onclick: () => openThread(m.conversation_id, m.id) }, icon('message-square-detail')),
     h('button', { class: 'btn-icon h-7 w-7 text-lg', 'aria-label': 'Weitere Aktionen', title: 'Mehr', 'aria-haspopup': 'menu', onclick: (e) => messageMenu(m, e.currentTarget) }, icon('dots-horizontal-rounded'))) : null;
 
-  const col = h('div', { class: `group relative flex min-w-0 max-w-[88%] flex-col sm:max-w-[72%] ${own ? 'items-end' : 'items-start'}` }, toolbar, body, reactions);
+  const col = h('div', { class: `group relative flex min-w-0 max-w-[88%] flex-col sm:max-w-[72%] ${own ? 'items-end' : 'items-start'}` }, toolbar, body, reactions, m.deleted ? null : threadSummary(m, own));
   const avatarCol = own ? null : h('div', { class: 'mr-2 w-8 shrink-0 self-end' }, showHead || !continues ? (last ? userAvatar(m.sender || { display_name: '?' }, 'sm') : null) : null);
 
   const row = h('div', {
     class: `flex ${own ? 'justify-end' : 'justify-start'} ${continues ? 'mt-0.5' : 'mt-3'} transition`,
     'data-mid': m.id, role: 'article', tabindex: '0',
-    'aria-label': `${own ? 'Du' : (m.sender?.display_name || 'Unbekannt')}, ${fullDate(m.created_at)}: ${m.deleted ? 'gelöscht' : m.body.slice(0, 200)}`,
+    'aria-label': `${own ? 'Du' : (m.sender?.display_name || 'Unbekannt')}, ${fullDate(m.created_at)}: ${m.deleted ? 'gelöscht' : (m.kind === 'poll' ? `Umfrage: ${m.poll?.question || ''}` : m.kind === 'event' ? `Termin: ${m.event?.title || ''}` : m.body.slice(0, 200))}`,
     onkeydown: (e) => { if (e.key === 'Enter' && e.target === row && !m.deleted && !m._pending) { e.preventDefault(); messageMenu(m, row); } },
   }, avatarCol, col);
 
@@ -537,9 +583,10 @@ function messageMenu(m, anchor) {
   const canDelete = own || (c.type === 'group' && ['admin', 'moderator'].includes(c.role));
   menu(anchor, [
     { label: 'Antworten', icon: 'reply', onClick: () => startReply(m) },
+    { label: m.thread?.count ? 'Thread öffnen' : 'Im Thread antworten', icon: 'message-square-detail', onClick: () => openThread(m.conversation_id, m.id) },
     { label: 'Reagieren', icon: 'smile', onClick: () => reactionPicker(m, anchor instanceof Element ? anchor : el.list) },
-    m.body ? { label: 'Text kopieren', icon: 'copy', onClick: async () => toast((await copyText(m.body)) ? 'In die Zwischenablage kopiert.' : 'Kopieren nicht möglich.', 'success', 2000) } : null,
-    { label: 'Weiterleiten', icon: 'share', onClick: () => forwardDialog(m) },
+    m.body && m.kind === 'text' ? { label: 'Text kopieren', icon: 'copy', onClick: async () => toast((await copyText(m.body)) ? 'In die Zwischenablage kopiert.' : 'Kopieren nicht möglich.', 'success', 2000) } : null,
+    m.kind === 'text' ? { label: 'Weiterleiten', icon: 'share', onClick: () => forwardDialog(m) } : null,
     canEdit(m) && m.body ? { divider: true } : null,
     canEdit(m) && m.body ? { label: 'Bearbeiten', icon: 'edit', onClick: () => startEdit(m) } : null,
     !own ? { label: 'Melden', icon: 'flag', onClick: () => reportDialog(m) } : null,
@@ -637,6 +684,8 @@ function buildComposer() {
         tool('at', 'Person erwähnen', () => { insertAtCursor('@'); onInput(); }),
         tool('smile', 'Emoji einfügen', (e) => emojiPicker(e.currentTarget, (ch) => insertAtCursor(ch))),
         tool('paperclip', 'Datei anhängen', () => el.fileInput.click()),
+        el.pollTool = tool('poll', 'Umfrage erstellen', () => view.convId && pollDialog(view.convId)),
+        el.eventTool = tool('calendar-event', 'Termin erstellen', () => view.convId && eventDialog(view.convId)),
         h('span', { class: 'flex-1' }),
         el.sendBtn)),
     el.fileInput);
@@ -753,6 +802,7 @@ function saveDraft() {
   d.text = view.editing ? d.text : el.input.value;
   d.replyTo = view.replyTo;
   store.drafts.set(view.convId, d);
+  if (!view.editing) queueDraft(view.convId, 0, el.input.value, view.replyTo?.id || null);
 }
 function restoreDraft() {
   const d = store.drafts.get(view.convId) || {};
@@ -859,6 +909,7 @@ async function send() {
   el.input.value = '';
   view.replyTo = null;
   store.drafts.set(convId, {});
+  queueDraft(convId, 0, '', null, true);
   autosize();
   renderComposerBars();
   renderAttachments();

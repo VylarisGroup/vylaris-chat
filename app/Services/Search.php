@@ -43,7 +43,7 @@ final class Search
         }
 
         if (in_array($type, ['all', 'messages'], true)) {
-            $where = "m.deleted_at IS NULL AND m.kind = 'text'";
+            $where = "m.deleted_at IS NULL AND m.kind IN ('text','poll','event')";
             $params = [$userId];
             if ($q !== '') {
                 $where .= ' AND m.body LIKE ?';
@@ -66,7 +66,7 @@ final class Search
                 $params[] = $convFilter;
             }
             $rows = Database::all(
-                "SELECT m.id, m.conversation_id, m.sender_id, m.body, m.created_at, u.display_name
+                "SELECT m.id, m.conversation_id, m.sender_id, m.body, m.kind, m.thread_root_id, m.created_at, u.display_name
                  FROM messages m
                  JOIN conversation_members cm ON cm.conversation_id = m.conversation_id AND cm.user_id = ? AND cm.left_at IS NULL AND m.id > cm.visible_from_message_id
                  LEFT JOIN users u ON u.id = m.sender_id
@@ -83,6 +83,8 @@ final class Search
                     'conversation_type' => $convMap[$cid]['type'] ?? 'group',
                     'sender_id' => $r['sender_id'] ? (int) $r['sender_id'] : null,
                     'sender_name' => $r['display_name'] ?? 'Unbekannt',
+                    'kind' => $r['kind'],
+                    'thread_root_id' => $r['thread_root_id'] !== null ? (int) $r['thread_root_id'] : null,
                     'snippet' => self::snippet((string) $r['body'], $q),
                     'created_at' => iso($r['created_at']),
                 ];

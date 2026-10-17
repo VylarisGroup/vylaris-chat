@@ -8,6 +8,7 @@ use App\Controllers\AdminSecurityController;
 use App\Controllers\AdminPrivacyController;
 use App\Controllers\Api\PrivacyApiController;
 use App\Controllers\PrivacyController;
+use App\Controllers\Api\CollabController;
 use App\Controllers\Api\ConversationController;
 use App\Controllers\Api\MeController;
 use App\Controllers\Api\MessageController;
@@ -69,6 +70,9 @@ return static function (Router $r): void {
     $r->add('GET', '/avatar/u/{id}', [MeController::class, 'userAvatar'], $auth);
     $r->add('GET', '/avatar/c/{id}', [MeController::class, 'conversationAvatar'], $auth);
     $r->add('GET', '/files/{id}', [MiscController::class, 'file'], $auth);
+    $r->add('GET', '/calendar/event/{id}', [CollabController::class, 'ics'], $auth);
+    // Persönlicher Kalender-Feed: ohne Sitzung, geschützt durch das geheime Token im Link (für Kalender-Apps)
+    $r->add('GET', '/calendar/{token}', [CollabController::class, 'feed']);
 
     // API
     $r->add('GET', '/api/bootstrap', [MeController::class, 'bootstrap'], $api);
@@ -123,6 +127,20 @@ return static function (Router $r): void {
     $r->add('POST', '/api/conversations/{id}/typing', [ConversationController::class, 'typing'], $api);
     $r->add('POST', '/api/conversations/{id}/uploads', [ConversationController::class, 'upload'], $api);
 
+    $r->add('PUT', '/api/conversations/{id}/draft', [CollabController::class, 'saveDraft'], $api);
+    $r->add('GET', '/api/drafts', [CollabController::class, 'drafts'], $api);
+    $r->add('POST', '/api/conversations/{id}/polls', [CollabController::class, 'createPoll'], $api);
+    $r->add('POST', '/api/conversations/{id}/events', [CollabController::class, 'createEvent'], $api);
+    $r->add('POST', '/api/polls/{id}/vote', [CollabController::class, 'vote'], $api);
+    $r->add('POST', '/api/polls/{id}/close', [CollabController::class, 'closePoll'], $api);
+    $r->add('PATCH', '/api/events/{id}', [CollabController::class, 'updateEvent'], $api);
+    $r->add('POST', '/api/events/{id}/cancel', [CollabController::class, 'cancelEvent'], $api);
+    $r->add('POST', '/api/events/{id}/rsvp', [CollabController::class, 'rsvp'], $api);
+    $r->add('GET', '/api/messages/{id}', [CollabController::class, 'showMessage'], $api);
+    $r->add('GET', '/api/messages/{id}/thread', [CollabController::class, 'thread'], $api);
+    $r->add('GET', '/api/me/calendar-feed', [CollabController::class, 'feedStatus'], $api);
+    $r->add('POST', '/api/me/calendar-feed', [CollabController::class, 'feedEnable'], $api);
+    $r->add('DELETE', '/api/me/calendar-feed', [CollabController::class, 'feedDisable'], $api);
     $r->add('PATCH', '/api/messages/{id}', [MessageController::class, 'edit'], $api);
     $r->add('DELETE', '/api/messages/{id}', [MessageController::class, 'delete'], $api);
     $r->add('POST', '/api/messages/{id}/reactions', [MessageController::class, 'react'], $api);
@@ -135,6 +153,7 @@ return static function (Router $r): void {
     $r->add('POST', '/admin/users/invite', [AdminController::class, 'invite'], $admin);
     $r->add('POST', '/admin/users/create', [AdminController::class, 'createUser'], $admin);
     $r->add('POST', '/admin/users/{id}/update', [AdminController::class, 'updateUser'], $admin);
+    $r->add('POST', '/admin/users/{id}/guest-access', [AdminController::class, 'guestAccess'], $admin);
     $r->add('POST', '/admin/users/{id}/action', [AdminController::class, 'userAction'], $admin);
     $r->add('POST', '/admin/invitations/{id}/revoke', [AdminController::class, 'revokeInvitation'], $admin);
     $r->add('GET', '/admin/groups', [AdminController::class, 'groups'], $admin);

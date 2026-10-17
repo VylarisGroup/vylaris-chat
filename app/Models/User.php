@@ -109,6 +109,7 @@ final class User
             'last_seen_at' => ($showSeen && ($u['presence_pref'] ?? 'auto') !== 'invisible') ? iso($u['last_seen_at'] ?? null) : null,
             'is_active' => (bool) $u['is_active'],
             'role' => $u['role'],
+            'is_guest' => $u['role'] === 'guest',
         ];
     }
 
@@ -118,10 +119,20 @@ final class User
     public static function directory(string $q, int $limit = 30, ?int $excludeId = null): array
     {
         $params = [];
+        $guestViewer = false;
         $where = 'u.deleted_at IS NULL AND u.is_active = 1 AND u.processing_restricted_at IS NULL';
         if ($excludeId !== null) {
             $where .= ' AND u.id <> ?';
             $params[] = $excludeId;
+            // Gäste sehen nur Personen aus gemeinsamen Gruppen. Alle anderen sehen keine Gäste im Verzeichnis.
+            $viewerRole = (string) Database::value('SELECT role FROM users WHERE id = ?', [$excludeId]);
+            if ($viewerRole === 'guest') {
+                $guestViewer = true;
+                $where .= ' AND u.id IN (SELECT cm2.user_id FROM conversation_members cm2 WHERE cm2.left_at IS NULL AND cm2.conversation_id IN (SELECT cm1.conversation_id FROM conversation_members cm1 WHERE cm1.user_id = ? AND cm1.left_at IS NULL))';
+                $params[] = $excludeId;
+            } else {
+                $where .= " AND u.role <> 'guest'";
+            }
         }
         if ($q !== '') {
             $like = '%' . self::escapeLike($q) . '%';
@@ -133,7 +144,13 @@ final class User
             'SELECT ' . self::PUBLIC_COLUMNS . ' FROM users u LEFT JOIN user_settings s ON s.user_id = u.id WHERE ' . $where . ' ORDER BY u.display_name ASC LIMIT ?',
             $params
         );
-        return array_map([self::class, 'publicView'], $rows);
+        return array_map(static function (array $r) use ($guestViewer): array {
+            $v = self::publicView($r);
+            if ($guestViewer) {
+                $v['email'] = '';
+            }
+            return $v;
+        }, $rows);
     }
 
     public static function escapeLike(string $s): string

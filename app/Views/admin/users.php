@@ -1,5 +1,15 @@
 <?php use App\Core\Csrf;
-$statuses = ['all' => 'Alle', 'active' => 'Aktiv', 'inactive' => 'Deaktiviert', 'unverified' => 'E-Mail unbestätigt', 'admins' => 'Administratoren'];
+$statuses = ['all' => 'Alle', 'active' => 'Aktiv', 'inactive' => 'Deaktiviert', 'unverified' => 'E-Mail unbestätigt', 'admins' => 'Administratoren', 'guests' => 'Gäste'];
+$roleLabel = static fn (string $r): string => ['admin' => 'Administrator', 'guest' => 'Gast'][$r] ?? 'Mitglied';
+$groupBoxes = static function (array $groups, array $checked, string $idp): void {
+    if (!$groups) { echo '<p class="text-xs text-slate-500">Es gibt noch keine Gruppen. Lege zuerst eine Gruppe im Messenger an.</p>'; return; }
+    echo '<div class="max-h-40 overflow-y-auto rounded-xl border border-slate-200 p-2 dark:border-neutral-700">';
+    foreach ($groups as $g) {
+        $id = $idp . (int) $g['id'];
+        echo '<label class="flex items-center gap-2 rounded-lg px-2 py-1 text-sm hover:bg-slate-50 dark:hover:bg-neutral-800" for="' . e($id) . '"><input type="checkbox" id="' . e($id) . '" name="conversation_ids[]" value="' . (int) $g['id'] . '"' . (in_array((int) $g['id'], $checked, true) ? ' checked' : '') . '> ' . e($g['name']) . '</label>';
+    }
+    echo '</div>';
+};
 $stateOf = static function (array $u): array {
     if (!(int) $u['is_active']) return ['Deaktiviert', 'bg-slate-200 text-slate-700 dark:bg-neutral-700 dark:text-neutral-200'];
     if ($u['email_verified_at'] === null) return ['E-Mail offen', 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200'];
@@ -21,12 +31,33 @@ $stateOf = static function (array $u): array {
       <div><label class="label" for="e-role">Rolle</label>
         <select id="e-role" name="role" class="input" <?= $isSelf ? 'disabled aria-describedby="role-hint"' : '' ?>>
           <option value="member" <?= $edit['role'] === 'member' ? 'selected' : '' ?>>Mitglied</option>
+          <option value="guest" <?= $edit['role'] === 'guest' ? 'selected' : '' ?>>Gast</option>
           <option value="admin" <?= $edit['role'] === 'admin' ? 'selected' : '' ?>>Administrator</option>
         </select>
         <?php if ($isSelf): ?><input type="hidden" name="role" value="<?= e($edit['role']) ?>"><p id="role-hint" class="mt-1 text-xs text-slate-500">Die eigene Rolle kann nicht geändert werden.</p><?php endif; ?>
       </div>
+      <?php if ($edit['role'] !== 'guest' && !$isSelf): ?>
+      <details class="sm:col-span-3 rounded-xl border border-slate-200 p-3 dark:border-neutral-700">
+        <summary class="cursor-pointer text-sm font-medium">Zum Gast machen (optional)</summary>
+        <p class="my-2 text-xs text-slate-500 dark:text-neutral-400">Nur zusammen mit der Rolle «Gast» wirksam: Direktchats werden beendet, Moderationsrechte entfallen.</p>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div><label class="label" for="e-gexp">Zugang bis</label><input id="e-gexp" name="guest_expires" type="date" class="input" value="<?= e(date('Y-m-d', time() + 30 * 86400)) ?>"></div>
+          <div><span class="label">Gruppen</span><?php $groupBoxes($groups, [], 'e-g') ?></div>
+        </div>
+      </details>
+      <?php endif; ?>
       <div class="sm:col-span-3"><button class="btn btn-primary" type="submit">Änderungen speichern</button></div>
     </form>
+    <?php if ($edit['role'] === 'guest'): ?>
+    <form method="post" action="<?= e(url('admin/users/' . (int) $edit['id'] . '/guest-access')) ?>" class="mt-5 grid gap-4 rounded-xl border border-slate-200 p-4 sm:grid-cols-2 dark:border-neutral-700">
+      <?= Csrf::field() ?>
+      <div class="sm:col-span-2"><h3 class="text-sm font-semibold">Gastzugang</h3>
+        <p class="text-xs text-slate-500 dark:text-neutral-400">Der Gast sieht nur die gewählten Gruppen, hat keine Direktchats und sieht keine E-Mail-Adressen.<?= $edit['guest_expires_at'] ? ' Läuft ab am ' . e(local_dt($edit['guest_expires_at'])) . '.' : '' ?></p></div>
+      <div><label class="label" for="g-exp">Zugang bis (inklusive)</label><input id="g-exp" name="guest_expires" type="date" class="input" value="<?= e($edit['guest_expires_at'] ? local_dt($edit['guest_expires_at'], 'Y-m-d') : '') ?>"></div>
+      <div><span class="label">Gruppen</span><?php $groupBoxes($groups, $guestGroups, 'g-g') ?></div>
+      <div class="sm:col-span-2"><button class="btn btn-primary btn-sm" type="submit">Zugang speichern</button></div>
+    </form>
+    <?php endif; ?>
     <div class="mt-6 border-t border-slate-200 pt-5 dark:border-neutral-800">
       <h3 class="mb-3 text-sm font-semibold">Aktionen</h3>
       <div class="flex flex-wrap gap-2">
@@ -96,13 +127,19 @@ $stateOf = static function (array $u): array {
   <section class="card p-5" aria-labelledby="h-invite">
     <h2 id="h-invite" class="mb-1 text-base font-semibold">Per E-Mail einladen</h2>
     <p class="mb-4 text-sm text-slate-500 dark:text-neutral-400">Die Person erhält einen Link (7 Tage gültig) und legt ihr Konto selbst an.<?= $mailOk ? '' : ' SMTP ist noch nicht konfiguriert: Du erhältst den Link zur manuellen Weitergabe.' ?></p>
-    <form method="post" action="<?= e(url('admin/users/invite')) ?>" class="flex flex-col gap-3 sm:flex-row">
+    <form method="post" action="<?= e(url('admin/users/invite')) ?>" class="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
       <?= Csrf::field() ?>
       <label class="sr-only" for="inv-mail">E-Mail-Adresse</label>
       <input id="inv-mail" name="email" type="email" required maxlength="190" class="input" placeholder="name@firma.ch">
       <label class="sr-only" for="inv-role">Rolle</label>
-      <select id="inv-role" name="role" class="input sm:w-44"><option value="member">Mitglied</option><option value="admin">Administrator</option></select>
+      <select id="inv-role" name="role" class="input sm:w-44"><option value="member">Mitglied</option><option value="guest">Gast (zeitlich begrenzt, nur ausgewählte Gruppen)</option><option value="admin">Administrator</option></select>
       <button class="btn btn-primary shrink-0" type="submit">Einladen</button>
+      <details class="sm:basis-full"><summary class="cursor-pointer text-sm font-medium">Einstellungen für Gäste</summary>
+        <div class="mt-2 grid gap-3 sm:grid-cols-2">
+          <div><label class="label" for="inv-days">Gültigkeit des Zugangs (Tage)</label><input id="inv-days" name="guest_days" type="number" min="1" max="365" value="30" class="input"></div>
+          <div><span class="label">Gruppen</span><?php $groupBoxes($groups, [], 'inv-g') ?></div>
+        </div>
+      </details>
     </form>
   </section>
   <section class="card p-5" aria-labelledby="h-create">
@@ -113,7 +150,13 @@ $stateOf = static function (array $u): array {
       <div><label class="label" for="c-name">Anzeigename</label><input id="c-name" name="display_name" class="input" required minlength="2" maxlength="80"></div>
       <div><label class="label" for="c-mail">E-Mail-Adresse</label><input id="c-mail" name="email" type="email" class="input" required maxlength="190"></div>
       <div><label class="label" for="c-pass">Anfangspasswort (optional)</label><input id="c-pass" name="password" type="password" class="input" autocomplete="new-password" minlength="10" maxlength="72"></div>
-      <div><label class="label" for="c-role">Rolle</label><select id="c-role" name="role" class="input"><option value="member">Mitglied</option><option value="admin">Administrator</option></select></div>
+      <div><label class="label" for="c-role">Rolle</label><select id="c-role" name="role" class="input"><option value="member">Mitglied</option><option value="guest">Gast (zeitlich begrenzt, nur ausgewählte Gruppen)</option><option value="admin">Administrator</option></select></div>
+      <details class="sm:col-span-2"><summary class="cursor-pointer text-sm font-medium">Einstellungen für Gäste</summary>
+        <div class="mt-2 grid gap-3 sm:grid-cols-2">
+          <div><label class="label" for="c-days">Gültigkeit des Zugangs (Tage)</label><input id="c-days" name="guest_days" type="number" min="1" max="365" value="30" class="input"></div>
+          <div><span class="label">Gruppen</span><?php $groupBoxes($groups, [], 'c-g') ?></div>
+        </div>
+      </details>
       <div class="sm:col-span-2"><button class="btn btn-primary" type="submit">Konto anlegen</button></div>
     </form>
   </section>
@@ -140,7 +183,7 @@ $stateOf = static function (array $u): array {
         <?php foreach ($users as $u): [$sl, $sc] = $stateOf($u); ?>
           <tr>
             <td class="py-2.5 pr-3"><p class="font-medium"><?= e($u['display_name']) ?><?php if ($u['processing_restricted_at'] !== null): ?> <span class="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">eingeschränkt</span><?php endif; ?></p><p class="text-xs text-slate-500 dark:text-neutral-400"><?= e($u['email']) ?></p></td>
-            <td class="px-3 py-2.5"><?= $u['role'] === 'admin' ? 'Administrator' : 'Mitglied' ?></td>
+            <td class="px-3 py-2.5"><?= e($roleLabel($u['role'])) ?><?= $u['role'] === 'guest' && $u['guest_expires_at'] ? ' <span class="text-xs text-slate-500">bis ' . e(local_dt($u['guest_expires_at'], 'd.m.Y')) . '</span>' : '' ?></td>
             <td class="px-3 py-2.5"><span class="rounded-full px-2.5 py-0.5 text-xs font-semibold <?= $sc ?>"><?= e($sl) ?></span></td>
             <td class="px-3 py-2.5 text-slate-600 dark:text-neutral-300"><?= e(local_dt($u['last_login_at'])) ?></td>
             <td class="py-2.5 pl-3 text-right"><a class="btn btn-secondary btn-sm" href="<?= e(url('admin/users?edit=' . (int) $u['id'])) ?>" aria-label="<?= e($u['display_name']) ?> verwalten">Verwalten</a></td>
@@ -159,7 +202,7 @@ $stateOf = static function (array $u): array {
   <ul class="divide-y divide-slate-100 dark:divide-neutral-800">
     <?php foreach ($invitations as $i): ?>
       <li class="flex flex-wrap items-center justify-between gap-3 py-2.5 text-sm">
-        <span><span class="font-medium"><?= e($i['email']) ?></span> <span class="text-xs text-slate-500 dark:text-neutral-400">· <?= $i['role'] === 'admin' ? 'Administrator' : 'Mitglied' ?> · gültig bis <?= e(local_dt($i['expires_at'])) ?> · von <?= e($i['inviter'] ?? '–') ?></span></span>
+        <span><span class="font-medium"><?= e($i['email']) ?></span> <span class="text-xs text-slate-500 dark:text-neutral-400">· <?= e($roleLabel($i['role'])) ?> · gültig bis <?= e(local_dt($i['expires_at'])) ?> · von <?= e($i['inviter'] ?? '–') ?></span></span>
         <form method="post" action="<?= e(url('admin/invitations/' . (int) $i['id'] . '/revoke')) ?>"><?= Csrf::field() ?><button class="btn btn-secondary btn-sm" type="submit">Zurückziehen</button></form>
       </li>
     <?php endforeach; ?>

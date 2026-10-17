@@ -122,6 +122,7 @@ final class PollController extends Controller
         $removed = [];
         $receiptUpTo = [];
         $newByConv = [];
+        $draftConvs = [];
         $newCursor = $cursor;
         foreach ($events as $e) {
             $newCursor = max($newCursor, (int) $e['id']);
@@ -136,8 +137,14 @@ final class PollController extends Controller
                 case 'message.edit':
                 case 'message.delete':
                 case 'message.reaction':
+                case 'message.poll':
+                case 'message.event':
+                case 'message.thread':
                     $messageIds[$mid] = true;
                     $convIds[$cid] = true;
+                    break;
+                case 'draft':
+                    $draftConvs[$cid] = true;
                     break;
                 case 'receipt':
                     $receiptUpTo[$cid] = max($receiptUpTo[$cid] ?? 0, $mid);
@@ -182,7 +189,7 @@ final class PollController extends Controller
                 continue;
             }
             $rows = Database::all(
-                "SELECT * FROM messages WHERE conversation_id = ? AND sender_id = ? AND id <= ? AND kind = 'text' AND deleted_at IS NULL ORDER BY id DESC LIMIT 30",
+                "SELECT * FROM messages WHERE conversation_id = ? AND sender_id = ? AND id <= ? AND kind <> 'system' AND deleted_at IS NULL ORDER BY id DESC LIMIT 30",
                 [$cid, $uid, $upTo]
             );
             foreach (Messages::hydrate($rows, $uid) as $m) {
@@ -205,6 +212,8 @@ final class PollController extends Controller
             'reset' => $reset,
             'events' => array_map(fn ($e) => ['type' => $e['type'], 'conversation_id' => $e['conversation_id'] ? (int) $e['conversation_id'] : null, 'message_id' => $e['message_id'] ? (int) $e['message_id'] : null], $events),
             'messages' => array_values($messages),
+            'drafts' => $draftConvs ? \App\Services\Drafts::listFor($uid, array_keys($draftConvs)) : [],
+            'draft_convs' => array_map('intval', array_keys($draftConvs)),
             'conversations' => $conversations,
             'removed' => array_map('intval', array_keys($removed)),
             'typing' => ['conversation_id' => $view, 'names' => $typing],

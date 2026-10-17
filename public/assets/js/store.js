@@ -16,6 +16,8 @@ export const store = {
   msgs: new Map(), // convId -> { items, hasBefore, hasAfter, lastReadAtOpen }
   members: new Map(), // convId -> Details (Mitglieder, Dateien, Links)
   drafts: new Map(),
+  threadDrafts: new Map(), // "convId:rootId" -> Text
+  thread: null, // { convId, rootId } wenn ein Thread offen ist
   typing: { conversation_id: 0, names: [] },
   tab: 'chats', // chats | groups | contacts
   showArchive: false,

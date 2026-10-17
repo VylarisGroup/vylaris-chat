@@ -30,6 +30,7 @@ final class SelfTest
         'message_reactions', 'message_attachments', 'message_mentions', 'message_reports', 'notifications', 'invitations',
         'password_resets', 'email_verifications', 'audit_logs', 'system_settings', 'rate_limits', 'events', 'typing_state',
         'privacy_requests', 'schema_migrations', 'user_recovery_codes', 'push_subscriptions', 'jobs', 'data_breaches',
+        'polls', 'poll_options', 'poll_votes', 'calendar_events', 'event_rsvps', 'drafts',
     ];
 
     /** @var array<int,array{title:string,tests:array<int,array{name:string,status:string,detail:string,ms:int}>}> */
@@ -52,6 +53,7 @@ final class SelfTest
         self::group('Routen und Zugriffsschutz', self::routing());
         self::group('Anwendungslogik (Testdaten, wird zurückgerollt)', self::logic(), true);
         self::group('Zwei-Faktor, SSO, Push, Hintergrundaufträge (Testdaten, wird zurückgerollt)', self::advancedLogic(), true);
+        self::group('Zusammenarbeit: Threads, Umfragen, Termine, Entwürfe, Gäste (Testdaten, wird zurückgerollt)', self::collaboration(), true);
         self::group('Backup, Betrieb und Prüfpaket', self::operations());
         self::group('Lizenz', self::licensing());
         self::group('Aktualisierung', self::updating());
@@ -659,6 +661,151 @@ final class SelfTest
             'Gelöschte Konten verschwinden aus dem Verzeichnis' => static function () {
                 $dir = array_column(User::directory('Gelöschter', 50), 'id');
                 self::ok(!in_array((int) self::$ctx['a']['id'], array_map('intval', $dir), true), 'Gelöschtes Konto im Verzeichnis.');
+            },
+        ];
+    }
+
+    // ------------------------------------------- Threads, Umfragen, Termine, Gäste
+
+    private static function collaboration(): array
+    {
+        return [
+            'Gruppe und Testkonten für die Zusammenarbeit' => static function () {
+                self::$ctx['ca'] = self::newUser('CA');
+                self::$ctx['cb'] = self::newUser('CB');
+                self::$ctx['cc'] = self::newUser('CC');
+                self::$ctx['cg'] = Chat::createGroup((int) self::$ctx['ca']['id'], 'Selftest Zusammenarbeit', '', [(int) self::$ctx['cb']['id']]);
+                $r = Messages::send(self::$ctx['ca'], self::$ctx['cg'], 'Wurzel', null, null, []);
+                self::$ctx['root'] = self::msgId($r);
+            },
+            'Threads: Antwort erscheint nicht im Hauptverlauf, Zusammenfassung stimmt' => static function () {
+                $r = Messages::send(self::$ctx['cb'], self::$ctx['cg'], 'Thread-Antwort', null, null, [], self::$ctx['root']);
+                self::$ctx['reply'] = self::msgId($r);
+                $page = Messages::fetch(self::$ctx['cg'], (int) self::$ctx['ca']['id'], null, null, null, 50);
+                $ids = array_map('intval', array_column($page['messages'], 'id'));
+                self::ok(!in_array(self::$ctx['reply'], $ids, true), 'Thread-Antwort im Hauptverlauf.');
+                $root = array_values(array_filter($page['messages'], fn ($m) => (int) $m['id'] === self::$ctx['root']))[0] ?? null;
+                self::ok($root !== null && (int) ($root['thread']['count'] ?? 0) === 1, 'Thread-Zusammenfassung fehlt.');
+                $t = Messages::thread((int) self::$ctx['ca']['id'], self::$ctx['root']);
+                self::eq(1, count($t['replies']), 'Antworten im Thread');
+            },
+            'Threads: Antwort auf eine Antwort landet im selben Thread, Fremde haben keinen Zugriff' => static function () {
+                $r = Messages::send(self::$ctx['ca'], self::$ctx['cg'], 'Zweite', null, null, [], self::$ctx['reply']);
+                self::eq(self::$ctx['root'], (int) $r['message']['thread_root_id'], 'Wurzel der Antwort');
+                self::denies(404, static fn () => Messages::thread((int) self::$ctx['cc']['id'], self::$ctx['root']), 'Thread fremder Gruppe');
+                self::denies(404, static fn () => Messages::send(self::$ctx['cc'], self::$ctx['cg'], 'x', null, null, [], self::$ctx['root']), 'Antwort ohne Mitgliedschaft');
+            },
+            'Umfragen: Regeln für Einfach-/Mehrfachauswahl, Änderung, Rücknahme, Ende' => static function () {
+                $a = self::$ctx['ca'];
+                $b = self::$ctx['cb'];
+                $p = Polls::create($a, self::$ctx['cg'], 'Selftest-Umfrage', ['Eins', 'Zwei', 'Drei'], false, false, null);
+                $poll = $p['message']['poll'];
+                $o = array_column($poll['options'], 'id');
+                self::denies(422, static fn () => Polls::vote($b, $poll['id'], [$o[0], $o[1]]), 'Zwei Stimmen bei Einfachauswahl');
+                self::denies(422, static fn () => Polls::vote($b, $poll['id'], [999999999]), 'Fremde Option');
+                $v = Polls::vote($b, $poll['id'], [$o[0]]);
+                self::eq(1, $v['poll']['options'][0]['votes'], 'Stimmen Option 1');
+                $v = Polls::vote($b, $poll['id'], [$o[1]]);
+                self::eq(0, $v['poll']['options'][0]['votes'], 'Stimmen nach Änderung');
+                $v = Polls::vote($b, $poll['id'], []);
+                self::eq(0, $v['poll']['total_voters'], 'Stimmen nach Rücknahme');
+                self::denies(404, static fn () => Polls::vote(self::$ctx['cc'], $poll['id'], [$o[0]]), 'Abstimmen ohne Mitgliedschaft');
+                self::denies(403, static fn () => Polls::close($b, $poll['id']), 'Beenden durch Fremde');
+                Polls::close($a, $poll['id']);
+                self::denies(422, static fn () => Polls::vote($b, $poll['id'], [$o[0]]), 'Abstimmen nach Ende');
+                self::denies(422, static fn () => Polls::create($a, self::$ctx['cg'], 'Zu wenig', ['Nur eine'], false, false, null), 'Nur eine Option');
+                self::denies(422, static fn () => Polls::create($a, self::$ctx['cg'], 'Doppelt', ['A', 'a'], false, false, null), 'Doppelte Optionen');
+            },
+            'Umfragen: anonym zeigt keine Namen' => static function () {
+                $p = Polls::create(self::$ctx['ca'], self::$ctx['cg'], 'Anonyme Umfrage', ['Ja', 'Nein'], true, true, null)['message']['poll'];
+                $v = Polls::vote(self::$ctx['cb'], $p['id'], array_column($p['options'], 'id'));
+                self::eq(1, $v['poll']['total_voters'], 'Teilnehmende');
+                foreach ($v['poll']['options'] as $o) {
+                    self::eq([], $o['voters'], 'Namen bei anonymer Umfrage');
+                }
+            },
+            'Termine: Erstellen, Zusagen, Ändern, Absagen, Rechte' => static function () {
+                $in = ['title' => 'Selftest, Termin; "Q"', 'location' => "Raum 1\nZürich", 'description' => str_repeat('Ä', 100), 'starts_at' => gmdate('Y-m-d H:i', time() + 86400 * 3), 'ends_at' => gmdate('Y-m-d H:i', time() + 86400 * 3 + 3600)];
+                $m = Calendar::create(self::$ctx['ca'], self::$ctx['cg'], $in);
+                $ev = $m['message']['event'];
+                self::$ctx['ev'] = $ev['id'];
+                self::eq(1, $ev['counts']['yes'], 'Ersteller sagt automatisch zu');
+                $r = Calendar::rsvp(self::$ctx['cb'], $ev['id'], 'maybe');
+                self::eq(1, $r['event']['counts']['maybe'], 'Vielleicht');
+                self::denies(422, static fn () => Calendar::rsvp(self::$ctx['cb'], $ev['id'], 'bogus'), 'Ungültiger Status');
+                self::denies(404, static fn () => Calendar::rsvp(self::$ctx['cc'], $ev['id'], 'yes'), 'Zusage ohne Mitgliedschaft');
+                self::denies(403, static fn () => Calendar::update(self::$ctx['cb'], $ev['id'], ['title' => 'Hack']), 'Ändern durch Fremde');
+                $u = Calendar::update(self::$ctx['ca'], $ev['id'], ['title' => 'Selftest neu']);
+                self::eq('Selftest neu', $u['event']['title'], 'Titel');
+                self::eq(1, (int) Database::value('SELECT sequence FROM calendar_events WHERE id = ?', [$ev['id']]), 'SEQUENCE steigt bei Änderung');
+                self::denies(422, static fn () => Calendar::create(self::$ctx['ca'], self::$ctx['cg'], ['title' => 'Rückwärts', 'starts_at' => '2030-01-02 10:00', 'ends_at' => '2030-01-02 09:00']), 'Ende vor Beginn');
+            },
+            'ICS: Struktur, Maskierung, Zeilenlänge, Zugriff, Feed' => static function () {
+                $f = Calendar::icsFor(self::$ctx['ev'], (int) self::$ctx['cb']['id']);
+                $ics = $f['body'];
+                self::ok(str_starts_with($ics, "BEGIN:VCALENDAR\r\n") && str_contains($ics, "END:VEVENT\r\n") && str_contains($ics, 'BEGIN:VALARM'), 'ICS-Struktur');
+                self::ok(!preg_match('/(?<!\r)\n/', $ics), 'Nur CRLF als Zeilenende.');
+                foreach (explode("\r\n", $ics) as $line) {
+                    self::ok(strlen($line) <= 75, 'Zeile länger als 75 Oktette.');
+                }
+                self::ok(str_contains(str_replace("\r\n ", '', $ics), 'SUMMARY:Selftest neu'), 'SUMMARY fehlt.');
+                self::eq('a\\,b\\;c\\nd\\\\', Ics::escape("a,b;c\nd\\"), 'Maskierung');
+                self::denies(404, static fn () => Calendar::icsFor(self::$ctx['ev'], (int) self::$ctx['cc']['id']), 'ICS ohne Mitgliedschaft');
+                $token = Calendar::enableFeed((int) self::$ctx['cb']['id']);
+                $feed = Calendar::feedFor($token);
+                self::ok($feed !== null && str_contains(str_replace("\r\n ", '', $feed), 'Selftest neu'), 'Feed enthält den Termin nicht.');
+                self::ok(Calendar::feedFor(str_repeat('a', 48)) === null, 'Falscher Token liefert Daten.');
+                self::ok(Calendar::feedFor('../../etc/passwd') === null, 'Ungültiger Token akzeptiert.');
+                $new = Calendar::enableFeed((int) self::$ctx['cb']['id']);
+                self::ok(Calendar::feedFor($token) === null && Calendar::feedFor($new) !== null, 'Erneuern entwertet den alten Link nicht.');
+                Calendar::disableFeed((int) self::$ctx['cb']['id']);
+                self::ok(Calendar::feedFor($new) === null, 'Abgeschaltet, aber Link gültig.');
+            },
+            'Entwürfe: speichern, leeren, Fremde ausgeschlossen' => static function () {
+                $a = (int) self::$ctx['ca']['id'];
+                Drafts::save($a, self::$ctx['cg'], 0, 'Entwurf', null, 'selftestdev1');
+                self::eq(1, count(Drafts::listFor($a)), 'Entwürfe');
+                self::eq(0, count(Drafts::listFor((int) self::$ctx['cb']['id'])), 'Fremde Entwürfe');
+                self::denies(404, static fn () => Drafts::save((int) self::$ctx['cc']['id'], self::$ctx['cg'], 0, 'x', null, ''), 'Entwurf ohne Mitgliedschaft');
+                Drafts::save($a, self::$ctx['cg'], 0, '  ', null, 'selftestdev1');
+                self::eq(0, count(Drafts::listFor($a)), 'Leerer Text löscht');
+                Drafts::save($a, self::$ctx['cg'], 0, 'wieder', null, '');
+                Messages::send(self::$ctx['ca'], self::$ctx['cg'], 'gesendet', null, null, []);
+                self::eq(0, count(Drafts::listFor($a)), 'Senden löscht den Entwurf');
+            },
+            'Gäste: eingeschränkte Rechte, Verzeichnis, Ablauf' => static function () {
+                $g = self::newUser('G', 'guest');
+                $gid = (int) $g['id'];
+                Database::exec('UPDATE users SET guest_expires_at = ? WHERE id = ?', [gmdate('Y-m-d H:i:s', time() + 86400), $gid]);
+                Chat::addMembersSilently(self::$ctx['cg'], [$gid]);
+                $g = self::fresh($g);
+                self::denies(403, static fn () => Chat::directWith($gid, (int) self::$ctx['ca']['id']), 'Direktchat durch Gast');
+                self::denies(403, static fn () => Chat::createGroup($gid, 'Gastgruppe', '', []), 'Gruppe durch Gast');
+                self::denies(403, static fn () => Polls::create($g, self::$ctx['cg'], 'Gast-Umfrage', ['a', 'b'], false, false, null), 'Umfrage durch Gast');
+                self::denies(403, static fn () => Calendar::create($g, self::$ctx['cg'], ['title' => 'Gast', 'starts_at' => '2030-01-01 10:00']), 'Termin durch Gast');
+                self::denies(403, static fn () => Chat::directWith((int) self::$ctx['ca']['id'], $gid), 'Direktchat mit Gast');
+                self::ok(!in_array($gid, array_map('intval', array_column(User::directory('', 100, (int) self::$ctx['cc']['id']), 'id')), true), 'Gast im Verzeichnis anderer.');
+                $dir = User::directory('', 100, $gid);
+                self::ok(!in_array((int) self::$ctx['cc']['id'], array_map('intval', array_column($dir, 'id')), true), 'Gast sieht Nicht-Mitglieder.');
+                foreach ($dir as $row) {
+                    self::ok(empty($row['email']), 'Gast sieht E-Mail-Adresse.');
+                }
+                $res = Messages::send($g, self::$ctx['cg'], 'Gast schreibt', null, null, []);
+                self::ok(!empty($res['message']['id']), 'Gast darf in seiner Gruppe schreiben.');
+                self::ok(!Auth::guestExpired($g), 'Gast fälschlich abgelaufen.');
+                Database::exec('UPDATE users SET guest_expires_at = ? WHERE id = ?', [gmdate('Y-m-d H:i:s', time() - 60), $gid]);
+                self::ok(Auth::guestExpired(self::fresh($g)), 'Abgelaufener Gast nicht erkannt.');
+                self::ok(Auth::expireGuests() >= 1, 'Ablauf deaktiviert kein Konto.');
+                self::eq(0, (int) Database::value('SELECT is_active FROM users WHERE id = ?', [$gid]), 'Konto nach Ablauf aktiv');
+            },
+            'Gäste: Einladung braucht Gruppe, Dauer ist begrenzt' => static function () {
+                $adm = self::newUser('AD', 'admin');
+                $email = 'gast-' . bin2hex(random_bytes(3)) . '@selftest.invalid';
+                $r = Auth::invite($email, 'guest', (int) $adm['id'], null, [], 30);
+                self::ok($r['ok'] === false, 'Gast ohne Gruppe wurde eingeladen.');
+                $r = Auth::invite($email, 'guest', (int) $adm['id'], null, [self::$ctx['cg']], 9999);
+                self::ok($r['ok'] === true, 'Gast-Einladung fehlgeschlagen.');
+                self::eq(365, (int) Database::value('SELECT guest_days FROM invitations WHERE email = ? ORDER BY id DESC LIMIT 1', [$email]), 'Dauer wird auf 365 Tage begrenzt');
             },
         ];
     }

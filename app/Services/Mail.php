@@ -77,7 +77,7 @@ final class Mail
     /** Sendet mit den gespeicherten Einstellungen. Fehler werden geloggt, nie an den Benutzer durchgereicht. */
     public static function send(string $to, string $toName, string $subject, string $title, string $htmlBody, string $textBody): bool
     {
-        if (!self::configured()) {
+        if (!self::configured() || str_ends_with(strtolower($to), '.invalid')) { // .invalid: reserviert für Testadressen (Selbsttest)
             return false;
         }
         $res = self::deliver(self::currentConfig(), $to, $toName, $subject, self::wrap($title, $htmlBody), $textBody);

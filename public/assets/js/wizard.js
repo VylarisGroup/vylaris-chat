@@ -56,6 +56,20 @@
       else { dt.textContent = f.getAttribute('data-label'); v = f.value === '' ? '–' : (f.hasAttribute('data-secret') ? '••••••••' : f.value); }
       dd.textContent = v; row.append(dt, dd); list.append(row);
     });
+    // Mehrfachauswahl (Gruppen): gewählte Einträge in einer Zeile
+    const groups = new Map();
+    form.querySelectorAll('[data-checks]').forEach((c) => {
+      if (c.disabled) return;
+      const k = c.getAttribute('data-checks');
+      if (!groups.has(k)) groups.set(k, []);
+      if (c.checked) groups.get(k).push(c.getAttribute('data-text'));
+    });
+    groups.forEach((names, label) => {
+      const row = document.createElement('div'); row.className = 'flex justify-between gap-4 p-3';
+      const dt = document.createElement('dt'); dt.className = 'text-slate-500 dark:text-neutral-400'; dt.textContent = label;
+      const dd = document.createElement('dd'); dd.className = 'min-w-0 break-words text-right font-medium'; dd.textContent = names.length ? names.join(', ') : '–';
+      row.append(dt, dd); list.append(row);
+    });
   };
   const show = (n) => {
     i = n; sync();

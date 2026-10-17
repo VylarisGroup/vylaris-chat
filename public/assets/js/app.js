@@ -7,6 +7,7 @@ import { skeletonList, toast, closeMenu } from './ui.js';
 import { initChat, openConversation } from './chat.js';
 import { initSidebar, focusSearch } from './sidebar.js';
 import { initDetails } from './details.js';
+import { initThreads, loadDrafts } from './collab.js';
 import { startPolling, refreshTitle } from './poll.js';
 import { registerServiceWorker, syncPush, clearBadge } from './push.js';
 import { newChatDialog, shortcutsDialog } from './dialogs.js';
@@ -28,8 +29,9 @@ function buildLayout() {
   const sidebar = h('aside', { id: 'sidebar', class: 'flex w-full shrink-0 flex-col border-r border-slate-200 bg-white lg:flex lg:w-80 xl:w-[22rem] dark:border-neutral-800 dark:bg-neutral-900', 'aria-label': 'Unterhaltungen' });
   const main = h('main', { id: 'main', class: 'hidden min-w-0 flex-1 bg-white lg:flex dark:bg-neutral-900' });
   const details = h('aside', { id: 'details', class: 'hidden', 'aria-label': 'Details' });
-  app.append(h('div', { class: 'flex h-full w-full overflow-hidden' }, sidebar, main, details));
-  return { sidebar, main, details };
+  const thread = h('aside', { id: 'thread', class: 'hidden', 'aria-label': 'Thread' });
+  app.append(h('div', { class: 'flex h-full w-full overflow-hidden' }, sidebar, main, details, thread));
+  return { sidebar, main, details, thread };
 }
 
 function applyResponsive(parts) {
@@ -45,11 +47,19 @@ function applyResponsive(parts) {
 }
 
 function applyDetails(parts) {
-  const open = store.detailsOpen && !!store.activeId;
+  const open = store.detailsOpen && !!store.activeId && !store.thread;
   parts.details.className = open
     ? 'fixed inset-y-0 right-0 z-40 flex w-full max-w-sm shrink-0 flex-col border-l border-slate-200 bg-white shadow-pop xl:static xl:w-80 xl:max-w-none xl:shadow-none dark:border-neutral-800 dark:bg-neutral-900'
     : 'hidden';
   if (!open) clear(parts.details);
+}
+
+function applyThread(parts) {
+  const open = !!store.thread && !!store.activeId;
+  parts.thread.className = open
+    ? 'fixed inset-y-0 right-0 z-40 flex w-full max-w-md shrink-0 flex-col border-l border-slate-200 bg-white shadow-pop xl:static xl:w-96 xl:max-w-none xl:shadow-none dark:border-neutral-800 dark:bg-neutral-900'
+    : 'hidden';
+  if (!open) clear(parts.thread);
 }
 
 function navigate(delta) {
@@ -109,10 +119,13 @@ async function main() {
   empty.classList.replace('hidden', 'flex');
   empty.classList.add('flex-1');
   initDetails(parts.details);
+  initThreads(parts.thread);
+  loadDrafts(boot.drafts);
 
   store.on('mobile-view', () => applyResponsive(parts));
   store.on('details-toggle', () => applyDetails(parts));
-  store.on('active', () => applyDetails(parts));
+  store.on('active', () => { applyDetails(parts); applyThread(parts); });
+  store.on('thread-toggle', () => applyThread(parts));
   store.on('new-chat', () => newChatDialog());
   store.on('conversations', refreshTitle);
   store.on('me-changed', () => { state.me = store.me; });

@@ -183,7 +183,7 @@ final class Privacy
 
         $msgCols = $full ? 'id, conversation_id, kind, body, reply_to_id, forwarded, edited_at, deleted_at, created_at'
                          : 'id, conversation_id, kind, CHAR_LENGTH(body) AS zeichen, forwarded, edited_at, deleted_at, created_at';
-        $messages = Database::all("SELECT $msgCols FROM messages WHERE sender_id = ? AND kind = 'text' ORDER BY id ASC LIMIT 200000", [$userId]);
+        $messages = Database::all("SELECT $msgCols FROM messages WHERE sender_id = ? AND kind IN ('text','poll','event') ORDER BY id ASC LIMIT 200000", [$userId]);
 
         $attCols = $full ? 'id, message_id, conversation_id, original_name, mime_type, size_bytes, created_at'
                          : 'id, message_id, conversation_id, mime_type, size_bytes, created_at';
@@ -201,6 +201,9 @@ final class Privacy
         );
         $requests = Database::all('SELECT id, type, message, status, response, due_at, handled_at, created_at FROM privacy_requests WHERE user_id = ? ORDER BY id ASC', [$userId]);
         $invites = Database::value('SELECT COUNT(*) FROM invitations WHERE invited_by = ?', [$userId]);
+        $drafts = Database::all('SELECT conversation_id, thread_root_id, ' . ($full ? 'body, ' : 'CHAR_LENGTH(body) AS zeichen, ') . 'updated_at FROM drafts WHERE user_id = ? ORDER BY updated_at DESC LIMIT 500', [$userId]);
+        $votes = Database::all('SELECT poll_id, option_id, created_at FROM poll_votes WHERE user_id = ? ORDER BY created_at ASC LIMIT 20000', [$userId]);
+        $rsvps = Database::all('SELECT event_id, status, updated_at FROM event_rsvps WHERE user_id = ? ORDER BY updated_at ASC LIMIT 20000', [$userId]);
 
         return [
             '_hinweis' => [
@@ -219,6 +222,9 @@ final class Privacy
             'nachrichten' => $messages,
             'dateien' => $attachments,
             'reaktionen' => $reactions,
+            'entwuerfe_synchronisiert' => $drafts,
+            'umfrage_stimmen' => $votes,
+            'terminantworten' => $rsvps,
             'meldungen_von_ihnen' => $reports,
             'benachrichtigungen' => $notifications,
             'protokolleintraege' => $audit,
@@ -341,7 +347,7 @@ final class Privacy
         $count = 0;
         while (true) {
             $rows = Database::all(
-                "SELECT id, conversation_id FROM messages WHERE sender_id = ? AND kind = 'text' AND deleted_at IS NULL ORDER BY id ASC LIMIT 500",
+                "SELECT id, conversation_id FROM messages WHERE sender_id = ? AND kind IN ('text','poll','event') AND deleted_at IS NULL ORDER BY id ASC LIMIT 500",
                 [$userId]
             );
             if (!$rows) {

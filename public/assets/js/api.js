@@ -49,6 +49,7 @@ export const api = {
 
   get(path, opts) { return this.request('GET', path, undefined, opts); },
   post(path, body, opts) { return this.request('POST', path, body ?? {}, opts); },
+  put(path, body, opts) { return this.request('PUT', path, body ?? {}, opts); },
   patch(path, body, opts) { return this.request('PATCH', path, body ?? {}, opts); },
   del(path, body, opts) { return this.request('DELETE', path, body, opts); },
 

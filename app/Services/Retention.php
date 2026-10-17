@@ -30,6 +30,8 @@ final class Retention
         $stats['events'] = Database::exec('DELETE FROM events WHERE created_at < ?', [gmdate('Y-m-d H:i:s', time() - 2 * 86400)]);
         $stats['typing'] = Database::exec('DELETE FROM typing_state WHERE typed_at < ?', [gmdate('Y-m-d H:i:s', time() - 120)]);
         RateLimiter::purgeOld();
+        $stats['drafts'] = Drafts::purgeOld();
+        $stats['guests_expired'] = Auth::expireGuests();
         $stats['notifications'] = Database::exec('DELETE FROM notifications WHERE read_at IS NOT NULL AND read_at < ?', [gmdate('Y-m-d H:i:s', time() - 30 * 86400)]);
         $stats['tokens'] = Database::exec('DELETE FROM password_resets WHERE expires_at < ?', [gmdate('Y-m-d H:i:s', time() - 30 * 86400)])
             + Database::exec('DELETE FROM email_verifications WHERE expires_at < ?', [gmdate('Y-m-d H:i:s', time() - 30 * 86400)])

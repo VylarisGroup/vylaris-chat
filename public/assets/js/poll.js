@@ -4,6 +4,7 @@ import { api, ApiError } from './api.js';
 import { store } from './store.js';
 import { setTitle, url } from './util.js';
 import { toast } from './ui.js';
+import { applyRemoteDrafts } from './collab.js';
 import { applyPolledMessages, closeConversation, loadDetails, openConversation } from './chat.js';
 
 const FAST = 2500; // Fenster sichtbar und aktiv
@@ -144,6 +145,12 @@ async function handle(res) {
   for (const c of res.conversations || []) store.upsertConversation(c);
 
   const incoming = res.messages?.length ? applyPolledMessages(res.messages) : [];
+  if (res.draft_convs?.length) applyRemoteDrafts(res.drafts, res.draft_convs, (cid) => {
+    // Eigene, noch nicht synchronisierte Eingabe hat Vorrang vor Entwürfen anderer Geräte
+    const box = document.getElementById('composer-input');
+    if (store.activeId !== cid || !box) return false;
+    return box.value !== ((store.drafts.get(cid) || {}).synced ?? '');
+  });
   if (res.conversations?.length || res.removed?.length) store.emit('conversations');
 
   // Gruppeninfo des geöffneten Chats aktuell halten

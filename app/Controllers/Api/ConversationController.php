@@ -157,7 +157,8 @@ final class ConversationController extends Controller
             $r->str('body', '', Messages::MAX_BODY + 100),
             $r->input('client_uid') !== null ? $r->str('client_uid', '', 36) : null,
             $r->input('reply_to_id') ? $r->int('reply_to_id') : null,
-            $r->intList('attachment_ids')
+            $r->intList('attachment_ids'),
+            $r->input('thread_root_id') ? $r->int('thread_root_id') : null
         );
         return $this->json($res, $res['duplicate'] ? 200 : 201);
     }

@@ -10,9 +10,17 @@ Kennzahlen (Benutzer, Gruppen, Nachrichten, Dateien, offene Meldungen), Systemzu
 
 - **Einladen:** Person erhält einen Link (7 Tage gültig) und legt Name und Passwort selbst fest. Die E-Mail-Adresse gilt dadurch als bestätigt. Ohne funktionierendes SMTP zeigt die Seite den Link zur manuellen Weitergabe.
 - **Konto anlegen:** Ohne Anfangspasswort erhält die Person eine E-Mail, um eines zu setzen (empfohlen). Mit Anfangspasswort musst du es sicher übermitteln.
+- **Gäste:** Rolle «Gast» für externe Personen (Einladung, direkt anlegen oder Rolle ändern; auch im Assistenten). Ein Gast braucht mindestens eine Gruppe und einen Ablauf (Standard 30 Tage, höchstens 365). Gäste sehen nur ihre Gruppen, haben keine Direktchats, sehen keine E-Mail-Adressen und können weder Gruppen, Umfragen noch Termine erstellen; in der Benutzerliste erscheinen sie mit «bis <Datum>». Auf der Bearbeitungsseite eines Gasts lassen sich Ablaufdatum und Gruppen anpassen. Nach Ablauf wird das Konto automatisch deaktiviert (beim nächsten Anmeldeversuch bzw. durch den Hintergrundlauf); mit neuem Datum ist es wieder nutzbar. Gäste zählen bei der Lizenz als Konten.
 - **Verwalten:** Name, E-Mail, Rolle ändern; Passwort-Link senden; Bestätigungs-Mail erneut senden oder manuell bestätigen; alle Sitzungen beenden; deaktivieren/aktivieren; löschen.
 - **Löschen = Anonymisieren:** Name, E-Mail und Bild werden entfernt, Sitzungen beendet. Bisherige Nachrichten bleiben als „Gelöschter Benutzer“ erhalten (DSG: Personenbezug wird entfernt).
 - **Schutzregeln:** Du kannst dich nicht selbst deaktivieren, löschen oder herabstufen. Der letzte Administrator kann weder deaktiviert noch gelöscht noch herabgestuft werden.
+
+## Zusammenarbeit im Messenger
+
+- **Threads:** Antworten auf eine Nachricht (Symbol «Im Thread antworten») erscheinen in einem eigenen Seitenbereich und nicht im Hauptverlauf.
+- **Umfragen und Termine:** Über die Symbole im Eingabefeld. Termine lassen sich als `.ics` herunterladen; unter Einstellungen → Kalender gibt es einen persönlichen Abo-Link (geheim, erneuerbar, abschaltbar).
+- **Entwürfe:** Werden bis zu 30 Tage serverseitig gespeichert, damit sie auf allen Geräten verfügbar sind.
+- Der Kalender-Link ist öffentlich erreichbar (ohne Anmeldung), aber nur mit dem 48-stelligen Schlüssel; Fehlversuche werden je IP-Adresse begrenzt.
 
 ## Gruppen
 

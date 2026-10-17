@@ -7,7 +7,7 @@ namespace App\Services;
  * Assistenten für die Administration. Jeder Assistent führt schrittweise durch dieselben Felder wie das klassische
  * Formular und sendet am Ende an dessen bestehende Adresse; die klassischen Seiten bleiben unverändert nutzbar.
  *
- * Feld: name, label, type (text|email|password|number|select|checkbox|radio), value, options, required, help, placeholder,
+ * Feld: name, label, type (text|email|password|number|select|checkbox|radio|checks), value, options, required, help, placeholder,
  * autocomplete, min/max, when (['feld' => 'wert'] – nur anzeigen/prüfen, wenn dieses Feld den Wert hat).
  * Schritt: title, intro, fields. Optional 'actions' ([feld => [wert => Pfad]]) wechselt die Zieladresse je nach Auswahl.
  */
@@ -24,6 +24,7 @@ final class Wizards
         $s = Settings::all();
         $callback = base_url() . '/login/sso/callback';
         $one = static fn (string $v): bool => $v === '1';
+        $groups = array_column(\App\Core\Database::all("SELECT id, name FROM conversations WHERE type = 'group' ORDER BY name ASC LIMIT 300"), 'name', 'id');
         return [
             'user' => [
                 'title' => 'Person hinzufügen',
@@ -43,8 +44,11 @@ final class Wizards
                         ['name' => 'display_name', 'label' => 'Anzeigename', 'type' => 'text', 'required' => true, 'min' => 2, 'max' => 80, 'when' => ['mode' => 'create']],
                     ]],
                     ['title' => 'Rolle und Zugang', 'fields' => [
-                        ['name' => 'role', 'label' => 'Rolle', 'type' => 'select', 'value' => 'member', 'options' => ['member' => 'Mitglied', 'admin' => 'Administrator'],
-                            'help' => 'Administratoren verwalten die Installation, haben aber keinen Zugriff auf private Nachrichten.'],
+                        ['name' => 'role', 'label' => 'Rolle', 'type' => 'select', 'value' => 'member', 'options' => ['member' => 'Mitglied', 'guest' => 'Gast (zeitlich begrenzt)', 'admin' => 'Administrator'],
+                            'help' => 'Administratoren verwalten die Installation, haben aber keinen Zugriff auf private Nachrichten. Gäste sehen nur ausgewählte Gruppen.'],
+                        ['name' => 'guest_days', 'label' => 'Gültigkeit des Gastzugangs (Tage)', 'type' => 'number', 'value' => '30', 'min' => 1, 'max' => 365, 'required' => true, 'when' => ['role' => 'guest']],
+                        ['name' => 'conversation_ids[]', 'label' => 'Zugängliche Gruppen', 'type' => 'checks', 'options' => $groups, 'when' => ['role' => 'guest'],
+                            'help' => $groups ? 'Mindestens eine Gruppe wählen.' : 'Es gibt noch keine Gruppen. Lege zuerst eine Gruppe im Messenger an.'],
                         ['name' => 'password', 'label' => 'Anfangspasswort (optional)', 'type' => 'password', 'autocomplete' => 'new-password', 'secret' => true, 'when' => ['mode' => 'create'],
                             'help' => 'Leer lassen: Die Person erhält eine E-Mail, um selbst ein Passwort festzulegen.'],
                     ]],

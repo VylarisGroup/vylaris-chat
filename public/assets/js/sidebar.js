@@ -21,7 +21,7 @@ export function initSidebar(container) {
     el.logo,
     h('div', { class: 'flex items-center gap-0.5' },
       el.bell,
-      h('button', { class: 'btn-icon', 'aria-label': 'Neue Unterhaltung', title: 'Neue Unterhaltung (Strg+Alt+N)', onclick: () => newChatDialog() }, icon('edit-alt'))));
+      store.me.role === 'guest' ? null : h('button', { class: 'btn-icon', 'aria-label': 'Neue Unterhaltung', title: 'Neue Unterhaltung (Strg+Alt+N)', onclick: () => newChatDialog() }, icon('edit-alt'))));
 
   el.input = h('input', {
     type: 'search', class: 'input !rounded-xl !bg-slate-100 !pl-10 !pr-10 !shadow-none dark:!bg-neutral-800', placeholder: 'Suchen (Strg+K)', 'aria-label': 'Suchen',

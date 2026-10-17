@@ -62,6 +62,10 @@ final class Chat
         if (!$other || !(int) $other['is_active']) {
             throw new HttpException(404, 'Benutzer nicht gefunden.');
         }
+        $self = User::find($userId);
+        if (($self['role'] ?? '') === 'guest' || $other['role'] === 'guest') {
+            throw new HttpException(403, 'Mit Gästen sind keine Einzelchats möglich. Gäste nutzen die Gruppen, zu denen sie eingeladen wurden.');
+        }
         $key = min($userId, $otherId) . ':' . max($userId, $otherId);
         return (int) Database::transaction(function () use ($key, $userId, $otherId) {
             $row = Database::one('SELECT id FROM conversations WHERE direct_key = ?', [$key]);
@@ -88,6 +92,9 @@ final class Chat
     /** @param int[] $memberIds */
     public static function createGroup(int $creatorId, string $name, string $description, array $memberIds): int
     {
+        if ((User::find($creatorId)['role'] ?? '') === 'guest') {
+            throw new HttpException(403, 'Gäste können keine Gruppen erstellen.');
+        }
         $name = trim($name);
         if (mb_strlen($name) < 2 || mb_strlen($name) > 100) {
             throw new HttpException(422, 'Der Gruppenname muss zwischen 2 und 100 Zeichen lang sein.');
@@ -97,8 +104,9 @@ final class Chat
         if (count($memberIds) > 499) {
             throw new HttpException(422, 'Eine Gruppe darf höchstens 500 Mitglieder haben.');
         }
+        // Gäste werden nur durch Administratoren in Gruppen aufgenommen
         $valid = $memberIds ? array_column(Database::all(
-            'SELECT id FROM users WHERE id IN (' . Database::in($memberIds) . ') AND is_active = 1 AND deleted_at IS NULL',
+            "SELECT id FROM users WHERE id IN (" . Database::in($memberIds) . ") AND is_active = 1 AND deleted_at IS NULL AND role <> 'guest'",
             $memberIds
         ), 'id') : [];
 
@@ -187,10 +195,16 @@ final class Chat
         if ($current + count($userIds) > 500) {
             throw new HttpException(422, 'Eine Gruppe darf höchstens 500 Mitglieder haben.');
         }
+        $actorRole = (string) (User::find($actorId)['role'] ?? 'member');
         $users = Database::all(
-            'SELECT id, display_name FROM users WHERE id IN (' . Database::in($userIds) . ') AND is_active = 1 AND deleted_at IS NULL',
+            'SELECT id, display_name, role FROM users WHERE id IN (' . Database::in($userIds) . ') AND is_active = 1 AND deleted_at IS NULL',
             $userIds
         );
+        foreach ($users as $cand) {
+            if ($cand['role'] === 'guest' && $actorRole !== 'admin') {
+                throw new HttpException(403, 'Gäste kann nur die Administration zu Gruppen hinzufügen.');
+            }
+        }
         $actorName = User::find($actorId)['display_name'] ?? 'Jemand';
         $added = 0;
         foreach ($users as $u) {
@@ -270,6 +284,9 @@ final class Chat
         $target = self::membership($conversationId, $targetId);
         if (!$target) {
             throw new HttpException(404, 'Mitglied nicht gefunden.');
+        }
+        if ($role !== 'member' && (User::find($targetId)['role'] ?? '') === 'guest') {
+            throw new HttpException(422, 'Gäste können nicht zu Moderatoren oder Administratoren ernannt werden.');
         }
         if ($target['role'] === 'admin' && $role !== 'admin') {
             $admins = (int) Database::value("SELECT COUNT(*) FROM conversation_members WHERE conversation_id = ? AND role = 'admin' AND left_at IS NULL", [$conversationId]);
@@ -351,9 +368,9 @@ final class Chat
                     m.role, m.muted, m.archived, m.pinned, m.last_read_message_id,
                     (SELECT COUNT(*) FROM messages x WHERE x.conversation_id = c.id
                         AND x.id > GREATEST(m.last_read_message_id, m.visible_from_message_id)
-                        AND x.sender_id IS NOT NULL AND x.sender_id <> ? AND x.deleted_at IS NULL AND x.kind = 'text') AS unread,
+                        AND x.sender_id IS NOT NULL AND x.sender_id <> ? AND x.deleted_at IS NULL AND x.kind <> 'system' AND x.thread_root_id IS NULL) AS unread,
                     (SELECT COUNT(*) FROM messages x JOIN message_mentions mm ON mm.message_id = x.id AND mm.user_id = ?
-                        WHERE x.conversation_id = c.id AND x.id > m.last_read_message_id AND x.deleted_at IS NULL) AS unread_mentions,
+                        WHERE x.conversation_id = c.id AND x.id > m.last_read_message_id AND x.deleted_at IS NULL AND x.thread_root_id IS NULL) AS unread_mentions,
                     (SELECT COUNT(*) FROM conversation_members cm WHERE cm.conversation_id = c.id AND cm.left_at IS NULL) AS member_count
              FROM conversation_members m
              JOIN conversations c ON c.id = m.conversation_id
@@ -403,6 +420,11 @@ final class Chat
             $preview = null;
             if ($lm) {
                 $text = $lm['deleted_at'] !== null ? 'Nachricht gelöscht' : (trim((string) $lm['body']) !== '' ? mb_substr(preg_replace('/\s+/u', ' ', (string) $lm['body']) ?? '', 0, 120) : ((int) $lm['att'] > 0 ? 'Anhang' : ''));
+                if ($lm['deleted_at'] === null && $lm['kind'] === 'poll') {
+                    $text = 'Umfrage: ' . $text;
+                } elseif ($lm['deleted_at'] === null && $lm['kind'] === 'event') {
+                    $text = 'Termin: ' . $text;
+                }
                 $preview = [
                     'text' => $text,
                     'sender' => $lm['kind'] === 'system' ? null : $lm['display_name'],
@@ -448,9 +470,13 @@ final class Chat
              ORDER BY FIELD(cm.role, \'admin\', \'moderator\', \'member\'), u.display_name ASC',
             [$conversationId]
         );
-        $members = array_map(function ($r) {
+        $viewerIsGuest = (User::find($userId)['role'] ?? '') === 'guest';
+        $members = array_map(function ($r) use ($viewerIsGuest) {
             $v = User::publicView($r);
             $v['member_role'] = $r['member_role'];
+            if ($viewerIsGuest) {
+                $v['email'] = ''; // Gäste sehen keine Adressen
+            }
             return $v;
         }, $rows);
 

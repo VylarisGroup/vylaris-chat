@@ -70,6 +70,10 @@ final class Auth
             Audit::log('login.failed', $user ? (int) $user['id'] : null, null, null, $user ? '' : 'Unbekannte Adresse');
             return ['ok' => false, 'error' => 'E-Mail-Adresse oder Passwort ist falsch.'];
         }
+        if (self::guestExpired($user)) {
+            self::expireGuest($user);
+            return ['ok' => false, 'error' => 'Dein Gastzugang ist abgelaufen. Bitte wende dich an die Person, die dich eingeladen hat.'];
+        }
         if (!(int) $user['is_active']) {
             Audit::log('login.inactive', (int) $user['id']);
             return ['ok' => false, 'error' => 'Dieses Konto ist deaktiviert. Bitte wende dich an eine Administratorin oder einen Administrator.'];
@@ -174,6 +178,10 @@ final class Auth
         $hash = hash('sha256', session_id());
         $sess = Database::one('SELECT id, last_activity_at FROM user_sessions WHERE session_hash = ? AND user_id = ? AND revoked_at IS NULL', [$hash, $uid]);
         $user = $sess ? User::find($uid) : null;
+        if ($user && self::guestExpired($user)) {
+            self::expireGuest($user);
+            $user = null;
+        }
         if (!$sess || !$user || !(int) $user['is_active']) {
             if (session_status() === PHP_SESSION_ACTIVE) {
                 $_SESSION = [];
@@ -185,6 +193,32 @@ final class Auth
         }
         $user['_session_id'] = (int) $sess['id'];
         return self::$user = $user;
+    }
+
+    public static function guestExpired(array $user): bool
+    {
+        return ($user['role'] ?? '') === 'guest' && !empty($user['guest_expires_at']) && strtotime($user['guest_expires_at'] . ' UTC') <= time();
+    }
+
+    /** Läuft ein Gastzugang ab, wird das Konto deaktiviert (Sitzungen enden, der Platz wird frei). */
+    public static function expireGuest(array $user): void
+    {
+        if ((int) $user['is_active'] === 1) {
+            Database::exec('UPDATE users SET is_active = 0, updated_at = ? WHERE id = ?', [now(), $user['id']]);
+            Database::exec('UPDATE user_sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL', [now(), $user['id']]);
+            Audit::log('guest.expired', (int) $user['id'], 'user', (int) $user['id']);
+            License::reconcileLater();
+        }
+    }
+
+    /** Deaktiviert alle abgelaufenen Gastzugänge (wird regelmässig aufgerufen). */
+    public static function expireGuests(): int
+    {
+        $rows = Database::all("SELECT * FROM users WHERE role = 'guest' AND is_active = 1 AND deleted_at IS NULL AND guest_expires_at IS NOT NULL AND guest_expires_at <= ? LIMIT 200", [now()]);
+        foreach ($rows as $u) {
+            self::expireGuest($u);
+        }
+        return count($rows);
     }
 
     public static function logout(): void
@@ -387,7 +421,8 @@ final class Auth
     // ----------------------------------------------------------------- Einladungen
 
     /** @return array{ok:bool,error?:string,link?:string,mailed?:bool} */
-    public static function invite(string $email, string $role, int $invitedBy, ?int $conversationId = null): array
+    /** @param int[] $conversationIds Gruppen, in die ein Gast aufgenommen wird */
+    public static function invite(string $email, string $role, int $invitedBy, ?int $conversationId = null, array $conversationIds = [], ?int $guestDays = null): array
     {
         $email = mb_strtolower(trim($email));
         if (!self::validEmail($email)) {
@@ -398,9 +433,24 @@ final class Auth
         }
         $token = random_token();
         Database::exec('UPDATE invitations SET revoked_at = ? WHERE email = ? AND accepted_at IS NULL AND revoked_at IS NULL', [now(), $email]);
+        $role = in_array($role, ['admin', 'guest'], true) ? $role : 'member';
+        $conversationIds = array_values(array_unique(array_filter(array_map('intval', $conversationIds))));
+        if ($role === 'guest') {
+            if (!$conversationIds) {
+                return ['ok' => false, 'error' => 'Für einen Gast muss mindestens eine Gruppe gewählt werden.'];
+            }
+            $valid = array_map('intval', array_column(Database::all("SELECT id FROM conversations WHERE type = 'group' AND id IN (" . Database::in($conversationIds) . ')', $conversationIds), 'id'));
+            if (count($valid) !== count($conversationIds)) {
+                return ['ok' => false, 'error' => 'Eine der gewählten Gruppen existiert nicht.'];
+            }
+            $guestDays = max(1, min(365, $guestDays ?? 30));
+        } else {
+            $conversationIds = [];
+            $guestDays = null;
+        }
         $id = Database::insert(
-            'INSERT INTO invitations (email, token_hash, role, conversation_id, invited_by, expires_at, created_at) VALUES (?,?,?,?,?,?,?)',
-            [$email, hash('sha256', $token), $role === 'admin' ? 'admin' : 'member', $conversationId, $invitedBy, gmdate('Y-m-d H:i:s', time() + 7 * 86400), now()]
+            'INSERT INTO invitations (email, token_hash, role, conversation_id, conversation_ids, guest_days, invited_by, expires_at, created_at) VALUES (?,?,?,?,?,?,?,?,?)',
+            [$email, hash('sha256', $token), $role, $conversationId, $conversationIds ? implode(',', $conversationIds) : null, $guestDays, $invitedBy, gmdate('Y-m-d H:i:s', time() + 7 * 86400), now()]
         );
         $link = base_url() . '/invite/' . $token;
         $inviter = User::find($invitedBy);
@@ -440,6 +490,12 @@ final class Auth
         if ($inv['conversation_id']) {
             Chat::addMembersSilently((int) $inv['conversation_id'], [(int) $res['user_id']]);
         }
+        if ($inv['role'] === 'guest') {
+            Database::exec('UPDATE users SET guest_expires_at = ? WHERE id = ?', [gmdate('Y-m-d H:i:s', time() + max(1, (int) ($inv['guest_days'] ?? 30)) * 86400), $res['user_id']]);
+            foreach (array_filter(array_map('intval', explode(',', (string) ($inv['conversation_ids'] ?? '')))) as $cid) {
+                Chat::addMembersSilently($cid, [(int) $res['user_id']]);
+            }
+        }
         Audit::log('invitation.accepted', (int) $res['user_id'], 'invitation', (int) $inv['id']);
         return $res;
     }
@@ -476,6 +532,10 @@ final class Auth
             Database::exec("UPDATE users SET processing_restricted_at = NULL, processing_restricted_note = '', privacy_ack_at = NULL WHERE id = ?", [$userId]);
             Database::exec('DELETE FROM notifications WHERE user_id = ?', [$userId]);
             Database::exec('DELETE FROM message_reactions WHERE user_id = ?', [$userId]);
+            Database::exec('DELETE FROM drafts WHERE user_id = ?', [$userId]);
+            Database::exec('DELETE FROM poll_votes WHERE user_id = ?', [$userId]);
+            Database::exec('DELETE FROM event_rsvps WHERE user_id = ?', [$userId]);
+            Database::exec('UPDATE users SET ics_token_hash = NULL, guest_expires_at = NULL WHERE id = ?', [$userId]);
             Database::exec('UPDATE conversation_members SET left_at = ? WHERE user_id = ? AND left_at IS NULL', [now(), $userId]);
             Database::exec('UPDATE invitations SET revoked_at = ? WHERE invited_by = ? AND accepted_at IS NULL AND revoked_at IS NULL', [now(), $userId]);
         });

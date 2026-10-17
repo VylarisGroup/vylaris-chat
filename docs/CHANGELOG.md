@@ -1,5 +1,16 @@
 # Änderungen
 
+## 1.9.0 – Zusammenarbeit: Threads, Umfragen, Termine, Entwürfe, Gäste
+
+* **Threads:** Auf jede Nachricht lässt sich in einem eigenen Verlauf antworten. Die Hauptansicht bleibt aufgeräumt, unter der Nachricht steht «N Antworten» mit den Beteiligten. Beteiligte werden über neue Antworten benachrichtigt.
+* **Reaktionen:** Die Auswahl wurde auf 24 Emojis erweitert; Reaktionen funktionieren auch bei Umfragen und Terminen.
+* **Umfragen:** 2–10 Antworten, Einfach- oder Mehrfachauswahl, optional anonym, optional mit Frist (max. 90 Tage). Die Stimme lässt sich ändern oder zurücknehmen; Ersteller und Moderation können vorzeitig beenden.
+* **Termine:** Titel, Ort, Beschreibung, Datum/Zeit oder ganztägig. Zu-/Absagen (Ja, Vielleicht, Nein) mit Zählern. Änderungen und Absagen erscheinen als Hinweis im Verlauf.
+* **Kalender-Export (ICS):** Jeder Termin lässt sich als `.ics` herunterladen (mit Erinnerung 15 Minuten vorher). Zusätzlich gibt es in den Einstellungen einen persönlichen, geheimen Kalender-Abo-Link für alle Termine deiner Unterhaltungen (Outlook, Apple Kalender, Google Kalender u. a.). Der Link lässt sich jederzeit erneuern oder abschalten.
+* **Synchrone Entwürfe:** Nicht gesendeter Text wird serverseitig gespeichert und auf deinen anderen Geräten angezeigt. Entwürfe werden nach 30 Tagen gelöscht.
+* **Gastzugänge:** Neue Rolle «Gast» (Einladung, direkt anlegen oder Rolle ändern; auch im Assistenten). Gäste sind zeitlich befristet, sehen nur die gewählten Gruppen, haben keine Direktchats, sehen keine E-Mail-Adressen und können weder Gruppen, Umfragen noch Termine erstellen. Nach Ablauf wird das Konto automatisch gesperrt.
+* Datenbank-Migration 008 (automatisch beim Update).
+
 ## 1.8.2 – Push ohne curl_multi (KeyHelp)
 
 * Push funktioniert jetzt auch, wenn der Hoster `curl_multi_*` über `disable_functions` sperrt (z. B. KeyHelp): Die Geräte werden dann nacheinander statt parallel bedient.

@@ -4,6 +4,7 @@ import { api } from './api.js';
 import { store } from './store.js';
 import { h, icon, clear, userAvatar, convAvatar, humanSize, relativeSeen, presenceLabel, url, debounce, listTime, state } from './util.js';
 import { toast, modal, openPopover, closeMenu } from './ui.js';
+import { calendarFeedSection } from './collab.js';
 import { pushAvailable, pushEnabledHere, enablePush, disablePush, pushHint } from './push.js';
 
 // ------------------------------------------------------------ Formular-Helfer
@@ -337,6 +338,7 @@ export function settingsDialog(startTab = 'profile') {
     ['privacy', 'Privatsphäre', 'lock-alt'],
     ['mydata', 'Meine Daten', 'data'],
     ['appearance', 'Darstellung', 'palette'],
+    ['calendar', 'Kalender', 'calendar'],
     ['security', 'Sicherheit', 'shield-quarter'],
   ];
   let current = startTab;
@@ -354,7 +356,7 @@ export function settingsDialog(startTab = 'profile') {
       }, icon(ic, 'text-lg'), label));
     }
     clear(pane);
-    ({ profile: profileTab, notifications: notificationsTab, privacy: privacyTab, mydata: myDataTab, appearance: appearanceTab, security: securityTab })[current](pane, dlg, (tab) => { current = tab; paint(); });
+    ({ profile: profileTab, notifications: notificationsTab, privacy: privacyTab, mydata: myDataTab, appearance: appearanceTab, calendar: calendarTab, security: securityTab })[current](pane, dlg, (tab) => { current = tab; paint(); });
   };
   paint();
 }
@@ -588,6 +590,12 @@ function appearanceTab(pane) {
   paint(cur);
   pane.append(h('p', { class: 'label' }, 'Farbschema'), group,
     h('p', { class: 'mt-4 text-xs text-slate-500 dark:text-neutral-400' }, 'Die Akzentfarbe wird vom Unternehmen festgelegt. Das Farbschema gilt für alle deine Geräte.'));
+}
+
+function calendarTab(pane) {
+  pane.append(h('h3', { class: 'text-sm font-semibold' }, 'Termine'),
+    h('p', { class: 'mt-1 text-sm text-slate-600 dark:text-neutral-400' }, 'Termine, die in Unterhaltungen erstellt werden, kannst du einzeln als .ics-Datei herunterladen (Knopf «Zum Kalender» am Termin) oder alle zusammen als Kalender abonnieren.'));
+  calendarFeedSection(pane);
 }
 
 function describeAgent(ua = '') {

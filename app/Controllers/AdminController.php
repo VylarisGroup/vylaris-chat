@@ -156,6 +156,7 @@ final class AdminController extends Controller
             'inactive' => ' AND u.is_active = 0',
             'unverified' => ' AND u.email_verified_at IS NULL',
             'admins' => " AND u.role = 'admin'",
+            'guests' => " AND u.role = 'guest'",
             default => '',
         };
         $total = (int) Database::value("SELECT COUNT(*) FROM users u WHERE $where", $params);
@@ -178,20 +179,113 @@ final class AdminController extends Controller
             [now()]
         );
         $editRequests = $edit ? Database::all('SELECT id, type, status, due_at, created_at FROM privacy_requests WHERE user_id = ? ORDER BY id DESC LIMIT 10', [(int) $edit['id']]) : [];
-        return $this->page('admin/users', compact('users', 'q', 'status', 'page', 'pages', 'total', 'edit', 'invitations', 'editRequests') + [
+        $groups = Database::all("SELECT id, name FROM conversations WHERE type = 'group' ORDER BY name ASC LIMIT 300");
+        $guestGroups = $edit && $edit['role'] === 'guest'
+            ? array_map('intval', array_column(Database::all("SELECT cm.conversation_id FROM conversation_members cm WHERE cm.user_id = ? AND cm.left_at IS NULL", [(int) $edit['id']]), 'conversation_id'))
+            : [];
+        return $this->page('admin/users', compact('users', 'q', 'status', 'page', 'pages', 'total', 'edit', 'invitations', 'editRequests', 'groups', 'guestGroups') + [
             'mailOk' => Mail::configured(),
             'registrationOpen' => Settings::bool('registration_enabled'),
         ], 'users', 'Benutzer');
     }
 
+    /** Rolle aus dem Formular: admin, guest oder member. */
+    private function roleInput(Request $r): string
+    {
+        return match ($r->str('role', 'member', 10)) {
+            'admin' => 'admin',
+            'guest' => 'guest',
+            default => 'member',
+        };
+    }
+
+    /** Ende des gewählten Tages (Anzeige-Zeitzone) als UTC-Zeitstempel für den Ablauf eines Gastzugangs. */
+    private function guestExpiry(string $date): ?string
+    {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            return null;
+        }
+        try {
+            $tz = new \DateTimeZone((string) \App\Core\Config::get('app.timezone', 'Europe/Zurich'));
+            $d = new \DateTimeImmutable($date . ' 23:59:59', $tz);
+        } catch (\Throwable) {
+            return null;
+        }
+        return $d->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+    }
+
+    /**
+     * Macht ein Konto zum Gast: Direktchats verlassen, Moderationsrechte in Gruppen entziehen, Ablaufdatum setzen.
+     * @param int[] $groupIds Gruppen, in die der Gast aufgenommen wird
+     */
+    private function makeGuest(int $id, string $expiresUtc, array $groupIds): void
+    {
+        Database::exec("UPDATE users SET role = 'guest', guest_expires_at = ?, updated_at = ? WHERE id = ?", [$expiresUtc, now(), $id]);
+        $directs = Database::all("SELECT cm.conversation_id FROM conversation_members cm JOIN conversations c ON c.id = cm.conversation_id WHERE cm.user_id = ? AND cm.left_at IS NULL AND c.type = 'direct'", [$id]);
+        foreach ($directs as $d) {
+            Database::exec('UPDATE conversation_members SET left_at = ? WHERE conversation_id = ? AND user_id = ?', [now(), $d['conversation_id'], $id]);
+            Events::push('conversation.removed', (int) $d['conversation_id'], null, $id);
+        }
+        Database::exec("UPDATE conversation_members SET role = 'member' WHERE user_id = ? AND left_at IS NULL", [$id]);
+        $this->syncGuestGroups($id, $groupIds, false);
+    }
+
+    /** Gruppenzugang eines Gasts auf die gewählten Gruppen abgleichen. */
+    private function syncGuestGroups(int $id, array $groupIds, bool $remove = true): void
+    {
+        $groupIds = array_values(array_unique(array_filter(array_map('intval', $groupIds))));
+        $valid = $groupIds ? array_map('intval', array_column(Database::all("SELECT id FROM conversations WHERE type = 'group' AND id IN (" . Database::in($groupIds) . ')', $groupIds), 'id')) : [];
+        $current = array_map('intval', array_column(Database::all(
+            "SELECT cm.conversation_id FROM conversation_members cm JOIN conversations c ON c.id = cm.conversation_id WHERE cm.user_id = ? AND cm.left_at IS NULL AND c.type = 'group'",
+            [$id]
+        ), 'conversation_id'));
+        $guest = User::find($id);
+        foreach (array_diff($valid, $current) as $cid) {
+            $conv = Chat::conversation($cid);
+            Chat::addMembersSilently($cid, [$id]);
+            Messages::system($cid, ($guest['display_name'] ?? 'Ein Gast') . ' wurde als Gast hinzugefügt.');
+            Events::push('conversation.updated', $cid);
+        }
+        if ($remove) {
+            foreach (array_diff($current, $valid) as $cid) {
+                Database::exec('UPDATE conversation_members SET left_at = ? WHERE conversation_id = ? AND user_id = ?', [now(), $cid, $id]);
+                Events::push('conversation.removed', $cid, null, $id);
+                Events::push('conversation.updated', $cid);
+                Chat::repairAdmins($cid);
+            }
+        }
+    }
+
+    public function guestAccess(Request $r): Response
+    {
+        $admin = $this->user();
+        $id = (int) $r->params['id'];
+        $target = User::find($id);
+        if (!$target || $target['role'] !== 'guest') {
+            throw new HttpException(404, 'Gast nicht gefunden.');
+        }
+        $back = 'admin/users?edit=' . $id;
+        $groups = $r->intList('conversation_ids');
+        if (!$groups) {
+            return $this->back($back, null, 'Ein Gast braucht mindestens eine Gruppe. Zum Sperren das Konto deaktivieren.');
+        }
+        $this->syncGuestGroups($id, $groups);
+        $exp = $this->guestExpiry($r->str('guest_expires', '', 10));
+        if ($exp !== null && $exp !== $target['guest_expires_at']) {
+            Database::exec('UPDATE users SET guest_expires_at = ?, is_active = IF(? > ?, 1, is_active), updated_at = ? WHERE id = ?', [$exp, $exp, now(), now(), $id]);
+        }
+        Audit::log('admin.guest_access', (int) $admin['id'], 'user', $id, implode(',', $groups));
+        return $this->back($back, 'Zugang des Gasts gespeichert.');
+    }
+
     public function invite(Request $r): Response
     {
         $admin = $this->user();
-        $role = $r->str('role') === 'admin' ? 'admin' : 'member';
+        $role = $this->roleInput($r);
         if ($err = \App\Services\License::canAddUser()) {
             return $this->back('admin/users', null, $err);
         }
-        $res = Auth::invite($r->str('email', '', 190), $role, (int) $admin['id']);
+        $res = Auth::invite($r->str('email', '', 190), $role, (int) $admin['id'], null, $r->intList('conversation_ids'), $r->int('guest_days', 30));
         if (!$res['ok']) {
             return $this->back('admin/users', null, $res['error']);
         }
@@ -204,8 +298,15 @@ final class AdminController extends Controller
     public function createUser(Request $r): Response
     {
         $admin = $this->user();
-        $role = $r->str('role') === 'admin' ? 'admin' : 'member';
+        $role = $this->roleInput($r);
         $email = $r->str('email', '', 190);
+        $guestGroups = [];
+        if ($role === 'guest') {
+            $guestGroups = $r->intList('conversation_ids');
+            if (!$guestGroups) {
+                return $this->back('admin/users', null, 'Für einen Gast muss mindestens eine Gruppe gewählt werden.');
+            }
+        }
         $password = $r->str('password', '', 500);
         $generated = $password === '';
         if ($generated) {
@@ -216,6 +317,10 @@ final class AdminController extends Controller
             return $this->back('admin/users', null, $res['error']);
         }
         $uid = (int) $res['user_id'];
+        if ($role === 'guest') {
+            $days = max(1, min(365, $r->int('guest_days', 30)));
+            $this->makeGuest($uid, gmdate('Y-m-d H:i:s', time() + $days * 86400), $guestGroups);
+        }
         Audit::log('admin.user_created', (int) $admin['id'], 'user', $uid, $role);
         if ($generated) {
             $user = User::find($uid);
@@ -237,7 +342,7 @@ final class AdminController extends Controller
         }
         $name = trim($r->str('display_name', '', 80));
         $email = mb_strtolower(trim($r->str('email', '', 190)));
-        $role = $r->str('role') === 'admin' ? 'admin' : 'member';
+        $role = $this->roleInput($r);
         $back = 'admin/users?edit=' . $id;
         if (mb_strlen($name) < 2) {
             return $this->back($back, null, 'Der Anzeigename muss mindestens 2 Zeichen lang sein.');
@@ -252,15 +357,28 @@ final class AdminController extends Controller
             if ($id === (int) $admin['id']) {
                 return $this->back($back, null, 'Du kannst deine eigene Rolle nicht ändern.');
             }
-            if ($target['role'] === 'admin' && $role === 'member' && $this->adminCount() <= 1) {
+            if ($target['role'] === 'admin' && $role !== 'admin' && $this->adminCount() <= 1) {
                 return $this->back($back, null, 'Es muss mindestens ein Administrator bestehen bleiben.');
+            }
+            if ($role === 'guest') {
+                $exp = $this->guestExpiry($r->str('guest_expires', '', 10)) ?? gmdate('Y-m-d H:i:s', time() + 30 * 86400);
+                if (!Database::value("SELECT 1 FROM conversation_members cm JOIN conversations c ON c.id = cm.conversation_id WHERE cm.user_id = ? AND cm.left_at IS NULL AND c.type = 'group' LIMIT 1", [$id]) && !$r->intList('conversation_ids')) {
+                    return $this->back($back, null, 'Für einen Gast muss mindestens eine Gruppe gewählt werden.');
+                }
             }
         }
         $emailChanged = $email !== $target['email'];
         Database::exec(
             'UPDATE users SET display_name = ?, email = ?, role = ?, email_verified_at = ?, updated_at = ? WHERE id = ?',
-            [$name, $email, $role, $emailChanged ? null : $target['email_verified_at'], now(), $id]
+            [$name, $email, $role === 'guest' ? 'guest' : $role, $emailChanged ? null : $target['email_verified_at'], now(), $id]
         );
+        if ($role !== $target['role']) {
+            if ($role === 'guest') {
+                $this->makeGuest($id, $exp, $r->intList('conversation_ids'));
+            } elseif ($target['role'] === 'guest') {
+                Database::exec('UPDATE users SET guest_expires_at = NULL WHERE id = ?', [$id]);
+            }
+        }
         $changes = [];
         foreach (['display_name' => $name, 'email' => $email, 'role' => $role] as $k => $v) {
             if ($target[$k] !== $v) {

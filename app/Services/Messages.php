@@ -12,7 +12,9 @@ final class Messages
 {
     public const MAX_BODY = 8000;
     /** Erlaubte Reaktionen (feste Liste verhindert missbräuchliche oder defekte Zeichenfolgen). */
-    public const REACTIONS = ['👍', '👎', '❤️', '😂', '😮', '😢', '🎉', '🙏', '✅', '👀', '🔥', '💯'];
+    public const REACTIONS = ['👍', '👎', '❤️', '😂', '😮', '😢', '🎉', '🙏', '✅', '👀', '🔥', '💯', '👏', '🙌', '🤝', '😍', '🤔', '😅', '🚀', '💡', '⭐', '❌', '⚠️', '👋'];
+    /** Nachrichtenarten, die Inhalt von Personen enthalten (alles ausser Systemmeldungen). */
+    public const USER_KINDS = ['text', 'poll', 'event'];
 
     // ---------------------------------------------------------------- Hilfen
 
@@ -136,8 +138,41 @@ final class Messages
             }
         }
 
+        // Threads: Zusammenfassung für Nachrichten, die Antworten haben
+        $threads = [];
+        $rootIds = array_values(array_map(fn ($r) => (int) $r['id'], array_filter($rows, fn ($r) => empty($r['thread_root_id']) && $r['deleted_at'] === null && $r['kind'] !== 'system')));
+        if ($rootIds) {
+            foreach (Database::all(
+                'SELECT thread_root_id, COUNT(*) AS c, MAX(id) AS last_id, MAX(created_at) AS last_at FROM messages
+                 WHERE thread_root_id IN (' . Database::in($rootIds) . ') AND deleted_at IS NULL GROUP BY thread_root_id',
+                $rootIds
+            ) as $t) {
+                $threads[(int) $t['thread_root_id']] = ['count' => (int) $t['c'], 'last_id' => (int) $t['last_id'], 'last_at' => iso($t['last_at']), 'participants' => []];
+            }
+            if ($threads) {
+                $tids = array_keys($threads);
+                $seen = [];
+                foreach (Database::all(
+                    'SELECT m.thread_root_id, u.id, u.display_name, u.username, u.avatar_file FROM messages m JOIN users u ON u.id = m.sender_id
+                     WHERE m.thread_root_id IN (' . Database::in($tids) . ') AND m.deleted_at IS NULL ORDER BY m.id DESC LIMIT 400',
+                    $tids
+                ) as $p) {
+                    $rid = (int) $p['thread_root_id'];
+                    if (isset($seen[$rid][(int) $p['id']]) || count($threads[$rid]['participants']) >= 4) {
+                        continue;
+                    }
+                    $seen[$rid][(int) $p['id']] = true;
+                    $threads[$rid]['participants'][] = ['id' => (int) $p['id'], 'display_name' => $p['display_name'], 'username' => $p['username'], 'has_avatar' => !empty($p['avatar_file']), 'avatar_v' => !empty($p['avatar_file']) ? substr(md5($p['avatar_file']), 0, 8) : null];
+                }
+            }
+        }
+
+        // Umfragen und Termine
+        $pollViews = Polls::views(array_values(array_filter($rows, fn ($r) => $r['kind'] === 'poll' && $r['deleted_at'] === null)), $viewerId);
+        $eventViews = Calendar::views(array_values(array_filter($rows, fn ($r) => $r['kind'] === 'event' && $r['deleted_at'] === null)), $viewerId);
+
         // Lesestatus nur für eigene Nachrichten
-        $ownIds = array_values(array_map(fn ($r) => (int) $r['id'], array_filter($rows, fn ($r) => (int) $r['sender_id'] === $viewerId && $r['kind'] === 'text' && $r['deleted_at'] === null)));
+        $ownIds = array_values(array_map(fn ($r) => (int) $r['id'], array_filter($rows, fn ($r) => (int) $r['sender_id'] === $viewerId && $r['kind'] !== 'system' && $r['deleted_at'] === null)));
         $receipts = [];
         $recipientCounts = [];
         if ($ownIds) {
@@ -179,7 +214,7 @@ final class Messages
             $status = null;
             $readCount = 0;
             $total = 0;
-            if ($own && $r['kind'] === 'text' && !$deleted) {
+            if ($own && $r['kind'] !== 'system' && !$deleted) {
                 $total = $recipientCounts[(int) $r['conversation_id']] ?? 0;
                 $rc = $receipts[$id] ?? ['d' => 0, 'rd' => 0];
                 $readCount = $rc['rd'];
@@ -201,6 +236,10 @@ final class Messages
                 'edited_at' => iso($r['edited_at']),
                 'created_at' => iso($r['created_at']),
                 'forwarded' => (bool) $r['forwarded'],
+                'thread_root_id' => !empty($r['thread_root_id']) ? (int) $r['thread_root_id'] : null,
+                'thread' => $threads[$id] ?? null,
+                'poll' => $deleted ? null : ($pollViews[$id] ?? null),
+                'event' => $deleted ? null : ($eventViews[$id] ?? null),
                 'reply_to' => $r['reply_to_id'] ? ($replies[(int) $r['reply_to_id']] ?? ['id' => (int) $r['reply_to_id'], 'sender_name' => 'Unbekannt', 'text' => '', 'deleted' => true]) : null,
                 'reactions' => $reactionList,
                 'attachments' => $deleted ? [] : ($attachments[$id] ?? []),
@@ -248,22 +287,22 @@ final class Messages
         $hasAfter = false;
 
         if ($around !== null) {
-            $older = Database::all('SELECT * FROM messages WHERE conversation_id = ? AND id > ? AND id <= ? ORDER BY id DESC LIMIT 26', [$conversationId, $min, $around]);
-            $newer = Database::all('SELECT * FROM messages WHERE conversation_id = ? AND id > ? ORDER BY id ASC LIMIT 26', [$conversationId, max($around, $min)]);
+            $older = Database::all('SELECT * FROM messages WHERE conversation_id = ? AND thread_root_id IS NULL AND id > ? AND id <= ? ORDER BY id DESC LIMIT 26', [$conversationId, $min, $around]);
+            $newer = Database::all('SELECT * FROM messages WHERE conversation_id = ? AND thread_root_id IS NULL AND id > ? ORDER BY id ASC LIMIT 26', [$conversationId, max($around, $min)]);
             $hasBefore = count($older) > 25;
             $hasAfter = count($newer) > 25;
             $rows = array_merge(array_reverse(array_slice($older, 0, 25)), array_slice($newer, 0, 25));
         } elseif ($after !== null) {
-            $rows = Database::all('SELECT * FROM messages WHERE conversation_id = ? AND id > ? ORDER BY id ASC LIMIT ' . ($limit + 1), [$conversationId, max($after, $min)]);
+            $rows = Database::all('SELECT * FROM messages WHERE conversation_id = ? AND thread_root_id IS NULL AND id > ? ORDER BY id ASC LIMIT ' . ($limit + 1), [$conversationId, max($after, $min)]);
             $hasAfter = count($rows) > $limit;
             $rows = array_slice($rows, 0, $limit);
         } elseif ($before !== null) {
-            $rows = Database::all('SELECT * FROM messages WHERE conversation_id = ? AND id > ? AND id < ? ORDER BY id DESC LIMIT ' . ($limit + 1), [$conversationId, $min, $before]);
+            $rows = Database::all('SELECT * FROM messages WHERE conversation_id = ? AND thread_root_id IS NULL AND id > ? AND id < ? ORDER BY id DESC LIMIT ' . ($limit + 1), [$conversationId, $min, $before]);
             $hasBefore = count($rows) > $limit;
             $rows = array_reverse(array_slice($rows, 0, $limit));
             $hasAfter = true;
         } else {
-            $rows = Database::all('SELECT * FROM messages WHERE conversation_id = ? AND id > ? ORDER BY id DESC LIMIT ' . ($limit + 1), [$conversationId, $min]);
+            $rows = Database::all('SELECT * FROM messages WHERE conversation_id = ? AND thread_root_id IS NULL AND id > ? ORDER BY id DESC LIMIT ' . ($limit + 1), [$conversationId, $min]);
             $hasBefore = count($rows) > $limit;
             $rows = array_reverse(array_slice($rows, 0, $limit));
         }
@@ -283,7 +322,7 @@ final class Messages
      * @param int[] $attachmentIds
      * @return array{message:array,duplicate:bool}
      */
-    public static function send(array $user, int $conversationId, string $body, ?string $clientUid, ?int $replyTo, array $attachmentIds): array
+    public static function send(array $user, int $conversationId, string $body, ?string $clientUid, ?int $replyTo, array $attachmentIds, ?int $threadRoot = null): array
     {
         Privacy::assertNotRestricted($user);
         $uid = (int) $user['id'];
@@ -313,6 +352,15 @@ final class Messages
                 throw new HttpException(422, 'Die Nachricht, auf die du antwortest, existiert nicht.');
             }
         }
+        if ($threadRoot !== null) {
+            $root = Database::one('SELECT id, kind, deleted_at, thread_root_id FROM messages WHERE id = ? AND conversation_id = ? AND id > ?', [$threadRoot, $conversationId, (int) $member['visible_from_message_id']]);
+            if (!$root || $root['kind'] === 'system' || $root['deleted_at'] !== null) {
+                throw new HttpException(422, 'Der Thread existiert nicht mehr.');
+            }
+            if ($root['thread_root_id'] !== null) {
+                $threadRoot = (int) $root['thread_root_id']; // Antwort auf eine Thread-Antwort gehört zum selben Thread
+            }
+        }
         $attRows = [];
         if ($attachmentIds) {
             if (count($attachmentIds) > 10) {
@@ -335,7 +383,7 @@ final class Messages
                         array_merge([$messageId], $attachmentIds)
                     );
                 }
-            });
+            }, 'text', $threadRoot);
         } catch (\PDOException $e) {
             // Gleichzeitiger Doppel-Request mit derselben client_uid
             if ($clientUid !== null && $e->getCode() === '23000') {
@@ -349,15 +397,18 @@ final class Messages
         return ['message' => self::hydrate([$row], $uid)[0], 'duplicate' => false];
     }
 
-    /** Gemeinsame Einfüge-Logik für Senden und Weiterleiten. */
-    private static function create(array $user, int $conversationId, string $body, ?string $clientUid, ?int $replyTo, bool $forwarded, ?callable $inTx = null): array
+    /**
+     * Gemeinsame Einfüge-Logik für Senden, Weiterleiten sowie Umfragen und Termine.
+     * Thread-Antworten erscheinen nicht im Hauptverlauf: Sie ändern weder die Vorschau noch die Lesemarke der Unterhaltung.
+     */
+    public static function create(array $user, int $conversationId, string $body, ?string $clientUid, ?int $replyTo, bool $forwarded, ?callable $inTx = null, string $kind = 'text', ?int $threadRoot = null): array
     {
         $uid = (int) $user['id'];
         $mentions = self::resolveMentions($body, $conversationId, $uid);
-        $id = (int) Database::transaction(function () use ($uid, $conversationId, $body, $clientUid, $replyTo, $forwarded, $mentions, $inTx) {
+        $id = (int) Database::transaction(function () use ($uid, $conversationId, $body, $clientUid, $replyTo, $forwarded, $mentions, $inTx, $kind, $threadRoot) {
             $id = Database::insert(
-                "INSERT INTO messages (conversation_id, sender_id, client_uid, kind, body, reply_to_id, forwarded, created_at) VALUES (?,?,?,'text',?,?,?,?)",
-                [$conversationId, $uid, $clientUid, $body, $replyTo, $forwarded ? 1 : 0, now()]
+                'INSERT INTO messages (conversation_id, sender_id, client_uid, kind, body, reply_to_id, thread_root_id, forwarded, created_at) VALUES (?,?,?,?,?,?,?,?,?)',
+                [$conversationId, $uid, $clientUid, $kind, $body, $replyTo, $threadRoot, $forwarded ? 1 : 0, now()]
             );
             foreach ($mentions as $mn) {
                 Database::exec('INSERT IGNORE INTO message_mentions (message_id, user_id) VALUES (?, ?)', [$id, $mn['id']]);
@@ -365,17 +416,59 @@ final class Messages
             if ($inTx) {
                 $inTx($id);
             }
-            Database::exec('UPDATE conversations SET last_message_id = ?, last_message_at = ?, updated_at = ? WHERE id = ?', [$id, now(), now(), $conversationId]);
-            Database::exec('UPDATE conversation_members SET last_read_message_id = ?, archived = 0 WHERE conversation_id = ? AND user_id = ?', [$id, $conversationId, $uid]);
-            // Archivierte Unterhaltungen anderer Mitglieder tauchen bei neuen Nachrichten wieder auf, ausser sie sind stummgeschaltet
-            Database::exec('UPDATE conversation_members SET archived = 0 WHERE conversation_id = ? AND muted = 0 AND left_at IS NULL', [$conversationId]);
+            if ($threadRoot === null) {
+                Database::exec('UPDATE conversations SET last_message_id = ?, last_message_at = ?, updated_at = ? WHERE id = ?', [$id, now(), now(), $conversationId]);
+                Database::exec('UPDATE conversation_members SET last_read_message_id = ?, archived = 0 WHERE conversation_id = ? AND user_id = ?', [$id, $conversationId, $uid]);
+                // Archivierte Unterhaltungen anderer Mitglieder tauchen bei neuen Nachrichten wieder auf, ausser sie sind stummgeschaltet
+                Database::exec('UPDATE conversation_members SET archived = 0 WHERE conversation_id = ? AND muted = 0 AND left_at IS NULL', [$conversationId]);
+            }
             Database::exec('DELETE FROM typing_state WHERE conversation_id = ? AND user_id = ?', [$conversationId, $uid]);
             return $id;
         });
         Events::push('message.new', $conversationId, $id);
+        if ($threadRoot !== null) {
+            Events::push('message.thread', $conversationId, $threadRoot);
+        }
+        Drafts::clear($uid, $conversationId, $threadRoot ?? 0);
         $row = self::find($id);
-        Notifications::forNewMessage($row, $user, array_column($mentions, 'id'));
+        if ($threadRoot !== null) {
+            Notifications::forThreadReply($row, $user, array_column($mentions, 'id'), $threadRoot);
+        } else {
+            Notifications::forNewMessage($row, $user, array_column($mentions, 'id'));
+        }
         return $row;
+    }
+
+    /**
+     * Thread einer Nachricht: Ursprungsnachricht und alle Antworten.
+     * @return array{root:array,replies:array}
+     */
+    public static function thread(int $userId, int $messageId): array
+    {
+        ['message' => $msg, 'member' => $member] = self::findForUser($messageId, $userId);
+        if ($msg['kind'] === 'system') {
+            throw new HttpException(404, 'Nachricht nicht gefunden.');
+        }
+        $rootId = !empty($msg['thread_root_id']) ? (int) $msg['thread_root_id'] : (int) $msg['id'];
+        $root = $rootId === (int) $msg['id'] ? $msg : self::find($rootId);
+        if (!$root || $rootId <= (int) $member['visible_from_message_id']) {
+            throw new HttpException(404, 'Nachricht nicht gefunden.');
+        }
+        $replies = Database::all('SELECT * FROM messages WHERE thread_root_id = ? AND id > ? ORDER BY id ASC LIMIT 300', [$rootId, (int) $member['visible_from_message_id']]);
+        if ($replies) {
+            $showReceipts = (bool) (Database::value('SELECT show_read_receipts FROM user_settings WHERE user_id = ?', [$userId]) ?? 1);
+            $n = Database::exec(
+                "INSERT INTO message_receipts (message_id, user_id, delivered_at, read_at)
+                 SELECT id, ?, ?, ? FROM messages WHERE thread_root_id = ? AND id > ? AND sender_id IS NOT NULL AND sender_id <> ? AND deleted_at IS NULL
+                 ON DUPLICATE KEY UPDATE delivered_at = COALESCE(delivered_at, VALUES(delivered_at)), read_at = COALESCE(read_at, VALUES(read_at))",
+                [$userId, now(), $showReceipts ? now() : null, $rootId, (int) $member['visible_from_message_id'], $userId]
+            );
+            if ($n > 0) {
+                Events::push('receipt', (int) $root['conversation_id'], (int) end($replies)['id']);
+            }
+            Database::exec('UPDATE notifications SET read_at = ? WHERE user_id = ? AND conversation_id = ? AND read_at IS NULL AND message_id IN (SELECT id FROM messages WHERE thread_root_id = ?)', [now(), $userId, (int) $root['conversation_id'], $rootId]);
+        }
+        return ['root' => self::hydrate([$root], $userId)[0], 'replies' => self::hydrate($replies, $userId)];
     }
 
     // ------------------------------------------------------------- Bearbeiten
@@ -430,7 +523,7 @@ final class Messages
     {
         $uid = (int) $user['id'];
         ['message' => $msg, 'member' => $member] = self::findForUser($messageId, $uid);
-        if ($msg['kind'] !== 'text') {
+        if ($msg['kind'] === 'system') {
             throw new HttpException(403, 'Systemnachrichten können nicht gelöscht werden.');
         }
         $own = (int) $msg['sender_id'] === $uid;
@@ -457,6 +550,8 @@ final class Messages
             Database::exec('DELETE FROM message_attachments WHERE message_id = ?', [$messageId]);
             Database::exec('DELETE FROM message_reactions WHERE message_id = ?', [$messageId]);
             Database::exec('DELETE FROM message_mentions WHERE message_id = ?', [$messageId]);
+            Database::exec('DELETE FROM polls WHERE message_id = ?', [$messageId]);
+            Database::exec('DELETE FROM calendar_events WHERE message_id = ?', [$messageId]);
             Database::exec('DELETE FROM notifications WHERE message_id = ?', [$messageId]);
             Database::exec("UPDATE messages SET body = '', deleted_at = ?, edited_at = NULL WHERE id = ?", [now(), $messageId]);
         });
@@ -476,7 +571,7 @@ final class Messages
     public static function removeReported(int $adminId, int $messageId): void
     {
         $msg = Database::one('SELECT id, conversation_id, kind, deleted_at FROM messages WHERE id = ?', [$messageId]);
-        if (!$msg || $msg['kind'] !== 'text' || $msg['deleted_at'] !== null) {
+        if (!$msg || $msg['kind'] === 'system' || $msg['deleted_at'] !== null) {
             return;
         }
         self::erase($messageId, (int) $msg['conversation_id']);
@@ -493,7 +588,7 @@ final class Messages
             throw new HttpException(422, 'Diese Reaktion ist nicht erlaubt.');
         }
         ['message' => $msg] = self::findForUser($messageId, $uid);
-        if ($msg['deleted_at'] !== null || $msg['kind'] !== 'text') {
+        if ($msg['deleted_at'] !== null || $msg['kind'] === 'system') {
             throw new HttpException(422, 'Auf diese Nachricht kann nicht reagiert werden.');
         }
         if (!RateLimiter::hit('react', (string) $uid, 120, 60)) {
@@ -559,7 +654,7 @@ final class Messages
         $n = Database::exec(
             "INSERT IGNORE INTO message_receipts (message_id, user_id, delivered_at)
              SELECT id, ?, ? FROM messages
-             WHERE conversation_id = ? AND id > ? AND id <= ? AND sender_id IS NOT NULL AND sender_id <> ? AND kind = 'text' AND deleted_at IS NULL",
+             WHERE conversation_id = ? AND id > ? AND id <= ? AND sender_id IS NOT NULL AND sender_id <> ? AND kind <> 'system' AND deleted_at IS NULL",
             [$userId, now(), $conversationId, $from, $upToId, $userId]
         );
         if ($n > 0) {
@@ -581,7 +676,7 @@ final class Messages
                 Database::exec(
                     "INSERT INTO message_receipts (message_id, user_id, delivered_at, read_at)
                      SELECT id, ?, ?, ? FROM messages
-                     WHERE conversation_id = ? AND id > ? AND id <= ? AND sender_id IS NOT NULL AND sender_id <> ? AND kind = 'text' AND deleted_at IS NULL
+                     WHERE conversation_id = ? AND id > ? AND id <= ? AND sender_id IS NOT NULL AND sender_id <> ? AND kind <> 'system' AND deleted_at IS NULL
                      ON DUPLICATE KEY UPDATE delivered_at = COALESCE(delivered_at, VALUES(delivered_at)), read_at = COALESCE(read_at, VALUES(read_at))",
                     [$userId, now(), $showReceipts ? now() : null, $conversationId, $from, $upTo, $userId]
                 );
@@ -618,7 +713,7 @@ final class Messages
     {
         $uid = (int) $user['id'];
         ['message' => $msg] = self::findForUser($messageId, $uid);
-        if ((int) $msg['sender_id'] === $uid || $msg['kind'] !== 'text') {
+        if ((int) $msg['sender_id'] === $uid || $msg['kind'] === 'system') {
             throw new HttpException(422, 'Diese Nachricht kann nicht gemeldet werden.');
         }
         $reason = trim($reason);

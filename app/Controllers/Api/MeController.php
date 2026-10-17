@@ -48,6 +48,7 @@ final class MeController extends Controller
             'branding' => Settings::branding(),
             'conversations' => Chat::listFor($uid),
             'cursor' => Events::latestId(),
+            'drafts' => \App\Services\Drafts::listFor($uid),
             'notifications_unread' => Notifications::unreadCount($uid),
             'csrf' => Csrf::token(),
             'limits' => [
