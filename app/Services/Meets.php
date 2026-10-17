@@ -23,12 +23,14 @@ final class Meets
 
     public static function key(): string
     {
-        return Crypto::decrypt(Settings::get('meets_key_enc'));
+        $fixed = trim((string) Config::get('meets.api_key', ''));
+        return $fixed !== '' ? $fixed : Crypto::decrypt(Settings::get('meets_key_enc'));
     }
 
     public static function webhookSecret(): string
     {
-        return Crypto::decrypt(Settings::get('meets_webhook_secret_enc'));
+        $fixed = trim((string) Config::get('meets.webhook_secret', ''));
+        return $fixed !== '' ? $fixed : Crypto::decrypt(Settings::get('meets_webhook_secret_enc'));
     }
 
     public static function enabled(): bool
