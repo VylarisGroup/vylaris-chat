@@ -9,6 +9,7 @@ import { initSidebar, focusSearch } from './sidebar.js';
 import { initDetails } from './details.js';
 import { initThreads, loadDrafts } from './collab.js';
 import { startPolling, refreshTitle } from './poll.js';
+import { acceptCall } from './meets.js';
 import { registerServiceWorker, syncPush, clearBadge } from './push.js';
 import { newChatDialog, shortcutsDialog } from './dialogs.js';
 
@@ -141,6 +142,15 @@ async function main() {
   const m = Number(params.get('m')) || null;
   if (c && store.conv(c)) openConversation(c, { around: m, focus: false });
   else if (c) toast('Diese Unterhaltung ist nicht verfügbar.', 'warn');
+
+  // Anruf angenommen, während die App geschlossen war (Benachrichtigung → «Annehmen»)
+  const callId = Number(params.get('meeting'));
+  if (c && callId) {
+    acceptCall(callId, c);
+    params.delete('meeting');
+    const q = params.toString();
+    history.replaceState(null, '', location.pathname + (q ? '?' + q : '') + location.hash);
+  }
 
   startPolling();
   registerServiceWorker().then(() => syncPush());

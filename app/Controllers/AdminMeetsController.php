@@ -38,6 +38,10 @@ final class AdminMeetsController extends Controller
             'enabled' => Settings::bool('meets_enabled'),
             'hasKey' => $key !== '',
             'keyHint' => $key !== '' ? substr($key, 0, 5) . '…' . substr($key, -4) : '',
+            'ring' => Settings::bool('meets_ring'),
+            'pushOn' => \App\Services\Push::enabled(),
+            'keyFromConfig' => Settings::get('meets_key_enc') === '' && $key !== '',
+            'secretFromConfig' => Settings::get('meets_webhook_secret_enc') === '' && Meets::webhookSecret() !== '',
             'hasSecret' => Meets::webhookSecret() !== '',
             'webhookUrl' => base_url() . '/api/meets/webhook',
             'origin' => base_url(),
@@ -64,13 +68,20 @@ final class AdminMeetsController extends Controller
             }
             Settings::set('meets_webhook_secret_enc', Crypto::encrypt($secret));
         }
+        if ($r->bool('remove_key')) {
+            Settings::set('meets_key_enc', '');
+        }
+        if ($r->bool('remove_secret')) {
+            Settings::set('meets_webhook_secret_enc', '');
+        }
+        Settings::set('meets_ring', $r->bool('ring') ? '1' : '0');
         $want = $r->bool('enabled');
         if ($want && Meets::key() === '') {
             Settings::set('meets_enabled', '0');
             return $this->back(null, 'Bitte zuerst einen API-Schlüssel eintragen.');
         }
         Settings::set('meets_enabled', $want ? '1' : '0');
-        Audit::log('admin.meets_settings', (int) $admin['id'], null, null, json_encode(['enabled' => $want, 'key_changed' => $key !== '', 'secret_changed' => $secret !== '']));
+        Audit::log('admin.meets_settings', (int) $admin['id'], null, null, json_encode(['enabled' => $want, 'key_changed' => $key !== '', 'secret_changed' => $secret !== '', 'ring' => $r->bool('ring')]));
         return $this->back('Einstellungen gespeichert.' . ($want && Meets::webhookSecret() === '' ? ' Hinweis: Ohne Webhook-Geheimnis wird die Teilnehmeranzeige nur beim Öffnen des Chats aktualisiert.' : ''));
     }
 

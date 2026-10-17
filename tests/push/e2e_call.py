@@ -1,0 +1,40 @@
+"""Ende-zu-Ende: Meeting-Start löst INCOMING_CALL-Push aus (Mock-Push-Dienst :8099, Meets-Mock :8093)."""
+import sys, json, os, time, subprocess, base64
+sys.path.insert(0, '/tmp/dev')
+exec(open('/home/claude/messenger/tests/push/e2e.py').read().split('# --- Einrichtung')[0])
+subprocess.run(['php', '/tmp/dev/setmeets.php', '1'], capture_output=True)
+print(php("use App\\Services\\{Push,Settings}; Push::ensureKeys(); Settings::set('push_enabled','1'); Settings::set('meets_ring','1');"))
+vap = php("echo App\\Services\\Settings::get('vapid_public');")
+anna = int(sql("select id from users where email='anna@muster.ch'")); bob = int(sql("select id from users where email='bob@muster.ch'"))
+sql("delete from push_subscriptions")
+pk = ec.generate_private_key(ec.SECP256R1()); pem = pk.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()).decode()
+pub = pk.public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint); auth = os.urandom(16)
+json.dump({'vapid_public': vap, 'devices': {'callB': {'pem': pem, 'auth': b64(auth), 'p256dh': b64(pub)}}, 'mode': 'ok'}, open('/tmp/pushmock/state.json', 'w'))
+sql('delete from rate_limits')
+A, ba = login('anna@muster.ch', 'Sehr-sicher-2026!'); B, bb = login('bob@muster.ch', 'Bob-Passwort-2026!')
+s, j = api(B, bb, 'POST', '/api/push/subscribe', {'endpoint': 'http://127.0.0.1:8099/push/callB', 'p256dh': b64(pub), 'auth': b64(auth)}); chk('Bob abonniert Push', s == 201, (s, j))
+s, j = api(A, ba, 'POST', '/api/conversations/direct', {'user_id': bob}); cid = j['conversation']['id']
+sql("update meetings set ended_at=UTC_TIMESTAMP() where ended_at is null")
+sql("update users set last_visible_at=NULL where id=%d" % bob); reset()
+s, st = api(A, ba, 'POST', f'/api/conversations/{cid}/meeting'); chk('Meeting gestartet', s == 200, st)
+r = wait(1); pl = r[0]['payload'] if r else {}
+chk('Push zugestellt', len(r) == 1 and not r[0]['problems'], r)
+chk('Typ INCOMING_CALL mit Anrufername und Meeting-Nummer', pl.get('type') == 'INCOMING_CALL' and pl.get('callId') == st['meeting']['id'] and pl.get('callerName') and pl.get('convId') == cid, pl)
+chk('Hohe Dringlichkeit', r and r[0]['headers'].get('Urgency') == 'high', r and r[0]['headers'])
+chk('tag eindeutig je Meeting', pl.get('tag') == 'meet-%d' % st['meeting']['id'], pl)
+# Zweiter Start (läuft schon) klingelt nicht erneut
+reset(); s, again = api(A, ba, 'POST', f'/api/conversations/{cid}/meeting'); time.sleep(1.5)
+chk('Erneuter Start klingelt nicht nochmal', again.get('existing') and len(received()) == 0, received())
+# Bob sichtbar: kein Push
+sql("update meetings set ended_at=UTC_TIMESTAMP() where ended_at is null"); reset()
+sql("update users set last_visible_at=UTC_TIMESTAMP() where id=%d" % bob)
+s, st2 = api(A, ba, 'POST', f'/api/conversations/{cid}/meeting'); time.sleep(1.5)
+chk('Sichtbare App: kein Push', len(received()) == 0, received())
+# Admin-Schalter aus
+sql("update meetings set ended_at=UTC_TIMESTAMP() where ended_at is null"); reset(); sql("update users set last_visible_at=NULL where id=%d" % bob)
+php("App\\Services\\Settings::set('meets_ring','0');")
+s, st3 = api(A, ba, 'POST', f'/api/conversations/{cid}/meeting'); time.sleep(1.5)
+chk('Schalter «Klingeln» aus: kein Push', len(received()) == 0, received())
+php("App\\Services\\Settings::set('meets_ring','1');")
+sql("update meetings set ended_at=UTC_TIMESTAMP() where ended_at is null")
+print('ALL OK' if ok else 'FAILURES'); sys.exit(0 if ok else 1)

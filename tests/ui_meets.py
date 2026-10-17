@@ -57,6 +57,13 @@ with sync_playwright() as p:
     a.locator('.modal button, [role=dialog] button', has_text='Beenden').last.click()
     chk('Bob sieht «Videomeeting beendet» live', wait_text(b, '[data-meeting]', 'beendet'))
     chk('Anna sieht «Videomeeting beendet»', wait_text(a, '[data-meeting]', 'beendet'))
+    # Anruf per Benachrichtigung angenommen (App war geschlossen): ?c=..&meeting=..
+    cidn = sql(f"select id from conversations where name='{name}'")
+    mid2 = a.evaluate("async (c) => { const b = await (await fetch('/api/bootstrap')).json(); const r = await fetch('/api/conversations/' + c + '/meeting', {method:'POST', headers:{'X-CSRF-Token': b.csrf,'Content-Type':'application/json'}, body:'{}'}); return (await r.json()).meeting.id; }", int(cidn))
+    b2 = cb.new_page(); b2.on('pageerror', lambda e: errs.append(str(e)))
+    b2.goto(f'{B}/?c={cidn}&meeting={mid2}'); b2.wait_for_selector('.meet-overlay iframe', timeout=15000)
+    chk('?meeting= tritt direkt eingebettet bei', b2.locator('.meet-overlay iframe').count() == 1)
+    chk('Parameter aus der Adresse entfernt', 'meeting=' not in b2.url, b2.url)
     chk('Keine JS-Fehler', not errs, errs)
     br.close()
 print('ALL OK' if ok else 'FAILURES'); sys.exit(0 if ok else 1)

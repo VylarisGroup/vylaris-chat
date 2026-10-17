@@ -72,6 +72,7 @@ final class Settings
         'oidc_domains' => '',
         'oidc_auth_method' => 'auto',
         'meets_enabled' => '0',
+        'meets_ring' => '1',
         'meets_key_enc' => '',
         'meets_webhook_secret_enc' => '',
         'review_checklist' => '',

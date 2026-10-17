@@ -24,7 +24,7 @@ Kennzahlen (Benutzer, Gruppen, Nachrichten, Dateien, offene Meldungen), Systemzu
 
 ## Videokonferenzen
 
-Unter *System → Videokonferenzen* trägst du den API-Schlüssel (`trsm_…`) und das Webhook-Geheimnis (`whsec_…`) von TheRedStonee Meets ein und aktivierst die Funktion. Beim Anbieter müssen zwei Dinge hinterlegt sein: die Adresse dieses Messengers als erlaubte Einbettungs-Domain (`embedOrigins`) und die auf der Seite angezeigte Webhook-Adresse (`…/api/meets/webhook`). «Verbindung testen» prüft Schlüssel, Einbettungs-Domain und Webhook. Ein Schlüssel erlaubt standardmässig 20 gleichzeitige Räume, ein Meeting pro Unterhaltung. Datenschutz: Der Anbieter verarbeitet Audio, Video, Namen und IP-Adressen; einen Auftragsverarbeitungsvertrag abschliessen.
+Unter *System → Videokonferenzen* trägst du den API-Schlüssel (`trsm_…`) und das Webhook-Geheimnis (`whsec_…`) von TheRedStonee Meets ein und aktivierst die Funktion. Beim Anbieter müssen zwei Dinge hinterlegt sein: die Adresse dieses Messengers als erlaubte Einbettungs-Domain (`embedOrigins`) und die auf der Seite angezeigte Webhook-Adresse (`…/api/meets/webhook`). «Verbindung testen» prüft Schlüssel, Einbettungs-Domain und Webhook. Schlüssel und Geheimnis lassen sich dort speichern, ersetzen und entfernen (alternativ als Rückfall in `config/config.php` unter `'meets' => ['api_key' => …, 'webhook_secret' => …]`; ein in der Administration gespeicherter Wert hat Vorrang). Mit «Geräte benachrichtigen» steuerst du den Push beim Meeting-Start (setzt aktivierten Push voraus). Ein Schlüssel erlaubt standardmässig 20 gleichzeitige Räume, ein Meeting pro Unterhaltung. Datenschutz: Der Anbieter verarbeitet Audio, Video, Namen und IP-Adressen; einen Auftragsverarbeitungsvertrag abschliessen.
 
 ## Gruppen
 

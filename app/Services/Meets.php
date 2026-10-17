@@ -23,14 +23,14 @@ final class Meets
 
     public static function key(): string
     {
-        $fixed = trim((string) Config::get('meets.api_key', ''));
-        return $fixed !== '' ? $fixed : Crypto::decrypt(Settings::get('meets_key_enc'));
+        $set = Crypto::decrypt(Settings::get('meets_key_enc'));
+        return $set !== '' ? $set : trim((string) Config::get('meets.api_key', ''));
     }
 
     public static function webhookSecret(): string
     {
-        $fixed = trim((string) Config::get('meets.webhook_secret', ''));
-        return $fixed !== '' ? $fixed : Crypto::decrypt(Settings::get('meets_webhook_secret_enc'));
+        $set = Crypto::decrypt(Settings::get('meets_webhook_secret_enc'));
+        return $set !== '' ? $set : trim((string) Config::get('meets.webhook_secret', ''));
     }
 
     public static function enabled(): bool
@@ -240,14 +240,50 @@ final class Meets
         } finally {
             Database::value('SELECT RELEASE_LOCK(?)', [$lock]);
         }
-        $meeting = Database::one('SELECT * FROM meetings WHERE message_id = ?', [(int) $row['id']]);
         $link = self::link($user, $code, true);
+        self::ring($user, $conv, (int) $row['id'], $conversationId);
         return [
             'message' => Messages::hydrate([$row], $uid)[0],
             'meeting' => self::views([$row], $uid)[(int) $row['id']],
             'link' => $link,
             'existing' => false,
         ] ;
+    }
+
+    /**
+     * Geräte der anderen Mitglieder «klingeln» lassen: Push mit Typ INCOMING_CALL (Annehmen / Ablehnen).
+     * Kein Push an Personen, die die App gerade sichtbar offen haben (dort erscheint die Karte sofort), an stummgeschaltete
+     * Gruppen und an Konten mit eingeschränkter Verarbeitung. Der Text nennt nur den Namen, nie Inhalte.
+     */
+    private static function ring(array $user, array $conv, int $messageId, int $conversationId): void
+    {
+        if (!Settings::bool('meets_ring') || !Push::enabled()) {
+            return;
+        }
+        $meetingId = (int) Database::value('SELECT id FROM meetings WHERE message_id = ?', [$messageId]);
+        $members = Database::all(
+            'SELECT cm.user_id, cm.muted, u.last_visible_at, u.processing_restricted_at FROM conversation_members cm
+             JOIN users u ON u.id = cm.user_id WHERE cm.conversation_id = ? AND cm.left_at IS NULL AND cm.user_id <> ? AND u.is_active = 1',
+            [$conversationId, (int) $user['id']]
+        );
+        $caller = (string) $user['display_name'];
+        foreach ($members as $m) {
+            if ($m['processing_restricted_at'] !== null || ((int) $m['muted'] && $conv['type'] === 'group')) {
+                continue;
+            }
+            if (!empty($m['last_visible_at']) && (time() - strtotime($m['last_visible_at'] . ' UTC')) < Push::VISIBLE_WINDOW) {
+                continue;
+            }
+            $uid = (int) $m['user_id'];
+            $p = Push::payload($uid, $conv['type'] === 'group' ? $caller . ' startet ein Videomeeting in „' . $conv['name'] . '“.' : $caller . ' ruft dich per Video an.', $conversationId, $messageId);
+            $p['type'] = 'INCOMING_CALL';
+            $p['callerName'] = $caller;
+            $p['callId'] = $meetingId;
+            $p['convId'] = $conversationId;
+            $p['tag'] = 'meet-' . $meetingId;
+            $p['url'] = '?c=' . $conversationId . '&meeting=' . $meetingId;
+            Push::notify($uid, $p);
+        }
     }
 
     /** @return array{link:array,meeting:array,message:array} */

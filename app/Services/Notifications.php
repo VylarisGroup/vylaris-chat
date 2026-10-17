@@ -23,6 +23,10 @@ final class Notifications
     /** @param int[] $mentionedIds */
     public static function forNewMessage(array $msg, array $sender, array $mentionedIds): void
     {
+        // Videomeetings melden sich selbst (Push «INCOMING_CALL» in Meets::ring), kein zusätzlicher Nachrichten-Hinweis
+        if (($msg['kind'] ?? '') === 'meeting') {
+            return;
+        }
         $convId = (int) $msg['conversation_id'];
         $conv = Chat::conversation($convId);
         if (!$conv) {

@@ -48,6 +48,25 @@ export async function startMeeting(convId) {
   } catch (e) { toast(e.message, 'error'); }
 }
 
+const handled = new Map();
+
+/** Annahme aus einer Benachrichtigung. Doppelte Ereignisse innerhalb von 15 Sekunden werden ignoriert. */
+export function acceptCall(meetingId, convId) {
+  meetingId = Number(meetingId); convId = Number(convId);
+  if (!Number.isInteger(meetingId) || meetingId <= 0 || !Number.isInteger(convId) || convId <= 0) return;
+  const now = Date.now();
+  if (now - (handled.get(meetingId) || 0) < 15000) return;
+  handled.set(meetingId, now);
+  if (!meetsEnabled()) { toast('Videokonferenzen sind nicht aktiviert.', 'error'); return; }
+  joinMeeting(meetingId, convId);
+}
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    if (e.data?.type === 'meet-accept') acceptCall(e.data.meetingId, e.data.convId);
+  });
+}
+
 export async function joinMeeting(meetingId, convId) {
   if (current) {
     if (current.meetingId === meetingId) { expand(); return; }

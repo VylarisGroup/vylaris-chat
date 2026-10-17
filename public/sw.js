@@ -22,8 +22,34 @@ async function readPayload(event) {
   return null;
 }
 
+// Eingehender Anruf (Videomeeting): nur mit gültiger Meeting-Nummer, sonst gewöhnlicher Hinweis.
+function callOf(d) {
+  if (!d || d.type !== 'INCOMING_CALL') return null;
+  const id = Number(d.callId);
+  const conv = Number(d.convId);
+  if (!Number.isInteger(id) || id <= 0 || !Number.isInteger(conv) || conv <= 0) return null;
+  return { id, conv, name: String(d.callerName || 'Unbekannt').slice(0, 80) };
+}
+
 async function show(event) {
   const d = (await readPayload(event)) || {};
+  const call = callOf(d);
+  if (call) {
+    // Gleiche tag: ein erneuter Push für dasselbe Meeting ersetzt den Hinweis (keine Doppelten).
+    // requireInteraction und Aktionen sind nicht überall verfügbar; Browser ohne Unterstützung ignorieren sie.
+    await self.registration.showNotification(call.name, {
+      body: String(d.body || 'Videomeeting'),
+      tag: 'meet-' + call.id,
+      renotify: true,
+      requireInteraction: true,
+      lang: 'de',
+      icon: new URL('assets/icons/icon-192.png', scope).href,
+      badge: new URL('assets/icons/badge-96.png', scope).href,
+      actions: [{ action: 'accept', title: 'Annehmen' }, { action: 'decline', title: 'Ablehnen' }],
+      data: { url: '?c=' + call.conv, call: { id: call.id, conv: call.conv } },
+    });
+    return;
+  }
   const title = String(d.title || 'Messenger');
   // Wichtig (iOS und Chrome): Jeder Push muss einen sichtbaren Hinweis erzeugen, sonst wird das Abo entzogen.
   // Ob die App sichtbar ist, entscheidet bereits der Server; hier wird deshalb immer angezeigt.
@@ -47,6 +73,22 @@ self.addEventListener('push', (event) => { event.waitUntil(show(event)); });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const call = event.notification.data?.call;
+  if (call && event.action === 'decline') return; // Ablehnen: Hinweis schliessen, das Meeting läuft für die anderen weiter
+  if (call && event.action === 'accept') {
+    event.waitUntil((async () => {
+      const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const w of wins) {
+        if (w.url.startsWith(scope) && 'focus' in w) {
+          await w.focus();
+          w.postMessage({ type: 'meet-accept', meetingId: call.id, convId: call.conv });
+          return;
+        }
+      }
+      await self.clients.openWindow(new URL('?c=' + call.conv + '&meeting=' + call.id, scope).href);
+    })());
+    return;
+  }
   const target = new URL(event.notification.data?.url || '', scope).href;
   event.waitUntil((async () => {
     const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });

@@ -41,4 +41,33 @@ vm.createContext(ctx); vm.runInContext(fs.readFileSync('/home/claude/messenger/p
   // Offline, leerer Push: generischer Text, Hinweis wird trotzdem gezeigt (iOS-Pflicht)
   ctx.fetch = async () => { throw new Error('offline'); };
   await L.push({ data: null, waitUntil: (x) => { p = x; } }); await p; assert.equal(calls.shown.at(-1)[1].body, 'Neue Aktivität im Messenger'); console.log('PASS offline + empty push still shows a generic notification');
+  // --- Eingehender Anruf (Videomeeting)
+  const callPush = (o) => ({ data: { json: () => o, text: () => '' }, waitUntil: (x) => { p = x; } });
+  await L.push(callPush({ type: 'INCOMING_CALL', callerName: 'Max Mustermann', callId: 7, convId: 3, body: 'Max ruft dich an' })); await p;
+  let [t, o] = calls.shown.at(-1);
+  assert.equal(t, 'Max Mustermann'); assert.equal(o.tag, 'meet-7'); assert.equal(o.requireInteraction, true);
+  assert.deepEqual(o.actions.map((a) => a.action), ['accept', 'decline']); assert.deepEqual(o.data.call, { id: 7, conv: 3 });
+  console.log('PASS INCOMING_CALL shows caller, requireInteraction, accept/decline, dedupe tag');
+  for (const bad of [{ type: 'INCOMING_CALL' }, { type: 'INCOMING_CALL', callId: 'x', convId: 3 }, { type: 'INCOMING_CALL', callId: -1, convId: 3 }, { type: 'INCOMING_CALL', callId: 1.5, convId: 3 }]) {
+    const n = calls.shown.length; await L.push(callPush(bad)); await p;
+    assert.equal(calls.shown.length, n + 1); assert(!calls.shown.at(-1)[1].actions, 'fehlerhafte Anrufdaten dürfen keine Aktionen zeigen');
+  }
+  console.log('PASS malformed call payloads fall back to a plain notification');
+  // Annehmen mit offenem Fenster: fokussieren und Frontend benachrichtigen
+  const posted = []; const w1 = win('https://chat.example/app/'); w1.postMessage = (m) => posted.push(m); windows = [w1]; calls.focused.length = 0;
+  await L.notificationclick({ action: 'accept', notification: { close: () => {}, data: { url: '?c=3', call: { id: 7, conv: 3 } } }, waitUntil: (x) => { p = x; } }); await p;
+  assert.equal(calls.focused.length, 1); assert.deepEqual(posted[0], { type: 'meet-accept', meetingId: 7, convId: 3 });
+  console.log('PASS accept focuses window and posts meet-accept');
+  // Annehmen ohne Fenster: neues Fenster mit Meeting-Parameter
+  windows = []; calls.opened.length = 0;
+  await L.notificationclick({ action: 'accept', notification: { close: () => {}, data: { url: '?c=3', call: { id: 7, conv: 3 } } }, waitUntil: (x) => { p = x; } }); await p;
+  assert.equal(calls.opened[0], 'https://chat.example/app/?c=3&meeting=7'); console.log('PASS accept with closed app opens window with meeting id');
+  // Ablehnen: nur schliessen, nichts öffnen
+  calls.opened.length = 0; calls.focused.length = 0; let cl = false; windows = [w1];
+  await L.notificationclick({ action: 'decline', notification: { close: () => { cl = true; }, data: { url: '?c=3', call: { id: 7, conv: 3 } } }, waitUntil: (x) => { p = x; } }); if (p) await p;
+  assert(cl && !calls.opened.length && !calls.focused.length); console.log('PASS decline only closes the notification');
+  // Klick auf den Hinweis selbst: Unterhaltung öffnen, nicht beitreten
+  calls.navigated.length = 0; windows = [w1];
+  await L.notificationclick({ action: '', notification: { close: () => {}, data: { url: '?c=3', call: { id: 7, conv: 3 } } }, waitUntil: (x) => { p = x; } }); await p;
+  assert.equal(calls.navigated[0], 'https://chat.example/app/?c=3'); console.log('PASS plain click opens the conversation without joining');
 })().catch((e) => { console.error('FAIL', e); process.exit(1); });
