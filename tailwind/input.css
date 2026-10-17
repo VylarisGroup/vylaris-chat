@@ -3,7 +3,12 @@
 @tailwind utilities;
 
 @layer base {
-  html { -webkit-tap-highlight-color: transparent; }
+  /* Touch: keine 300-ms-Wartezeit und kein Doppeltipp-Zoom; Tippen löst sofort aus */
+  html { -webkit-tap-highlight-color: transparent; touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  /* Kein Gummiband-Effekt und kein Pull-to-Refresh über die ganze Seite (installierte App) */
+  html, body { overscroll-behavior-y: none; }
+  /* Bedienelemente nicht markierbar, kein Lupen-/Kontextmenü beim langen Drücken */
+  button, [role='button'], summary, label.btn { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   body { @apply font-sans; }
   :focus-visible { outline: 2px solid rgb(var(--accent) / .7); outline-offset: 2px; }
   ::selection { background: rgb(var(--accent) / .25); }
@@ -33,6 +38,14 @@
   .chip { @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium; }
   .msg-text { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
   .kbd { @apply rounded border border-slate-300 bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-600 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-300; }
+}
+
+/* Touch-Geräte: Eingabefelder mit mindestens 16 px, sonst zoomt iOS beim Fokussieren die Seite heran und zoomt nicht zurück */
+@media (hover: none) and (pointer: coarse) {
+  html input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='color']),
+  html textarea,
+  html select { font-size: 16px !important; }
+  .scroll-y-contain { overscroll-behavior: contain; }
 }
 
 @media (prefers-reduced-motion: reduce) {

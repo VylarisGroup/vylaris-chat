@@ -7,7 +7,7 @@ $v = static fn (string $f): string => (string) @filemtime(ROOT_PATH . '/public/'
 <html lang="de">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <meta name="robots" content="noindex,nofollow">
   <meta name="csrf-token" content="<?= e($csrf) ?>">
   <meta name="app-base" content="<?= e(app_base_path()) ?>">
@@ -23,7 +23,7 @@ $v = static fn (string $f): string => (string) @filemtime(ROOT_PATH . '/public/'
   <title><?= e($title) ?></title>
   <link rel="stylesheet" href="<?= e(url('assets/vendor/boxicons/css/boxicons.min.css')) ?>">
   <link rel="stylesheet" href="<?= e(url('assets/css/app.css')) ?>?v=<?= e($v('assets/css/app.css')) ?>">
-  <style nonce="<?= e(SecurityHeaders::nonce()) ?>">:root{--accent: <?= e(Settings::accentRgb()) ?>;} html,body{height:100%;height:100dvh}</style>
+  <style nonce="<?= e(SecurityHeaders::nonce()) ?>">:root{--accent: <?= e(Settings::accentRgb()) ?>;} html,body{height:100%;height:var(--vvh,100dvh)}</style>
   <script src="<?= e(url('assets/js/theme.js')) ?>"></script>
 </head>
 <body class="bg-white text-slate-800 antialiased dark:bg-neutral-900 dark:text-neutral-100">

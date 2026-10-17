@@ -1,4 +1,4 @@
-"""UI-Smoketest 1.10.0 (Videokonferenzen) mit Chromium/Playwright. Voraussetzung: Dev-Server :8080, Mock :8093, Konten anna/bob."""
+"""UI-Smoketest 1.15.0 (Videokonferenzen) mit Chromium/Playwright. Voraussetzung: Dev-Server :8080, Mock :8093, Konten anna/bob."""
 import subprocess, sys, time, json, urllib.request
 from playwright.sync_api import sync_playwright
 def sql(q): return subprocess.run(['mysql','-N','-B','messenger_test','-e',q],capture_output=True,text=True).stdout.strip()

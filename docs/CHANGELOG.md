@@ -1,6 +1,10 @@
 # Änderungen
 
-## 1.10.0 – Videokonferenzen (TheRedStonee Meets)
+## 1.15.0 – Videokonferenzen und PWA-Feinschliff
+
+Diese Version fasst die übersprungenen Versionen 1.10.0 bis 1.14.0 zusammen.
+
+### Videokonferenzen (TheRedStonee Meets)
 
 * **Videomeetings im Chat:** Über das Kamera-Symbol in der Kopfzeile startest du ein Meeting. Es erscheint als Karte im Verlauf («Videomeeting läuft») mit Live-Anzeige, wie viele Personen gerade teilnehmen, und einem Knopf zum Beitreten.
 * **Eingebettet im Messenger:** Das Meeting öffnet sich als Overlay direkt im Messenger (auf dem Handy als Vollbild). Es lässt sich minimieren, während du weiter chattest, und über «Verlassen» schliessen.
@@ -9,7 +13,16 @@
 * **Klingeln per Push:** Beim Start eines Meetings erhalten die anderen Mitglieder eine Push-Benachrichtigung mit dem Namen der anrufenden Person und den Aktionen «Annehmen» und «Ablehnen» (bleibt stehen, bis man reagiert). «Annehmen» öffnet die App und tritt dem Meeting direkt bei, «Ablehnen» schliesst nur den Hinweis. Wer die App gerade sichtbar offen hat, bekommt keinen Push, sondern sieht die Karte sofort. Pro Meeting gibt es nur einen Hinweis. Abschaltbar in der Administration. Android/Desktop zeigen die Aktionsknöpfe; iOS/iPadOS zeigen keine Aktionsknöpfe und kein Dauer-Klingeln, ein Tipp öffnet den Chat mit der Karte.
 * **Symbole nur bei aktivem System:** Kamera-Symbol und Meeting-Karten erscheinen nur, wenn Videokonferenzen aktiviert und eingerichtet sind.
 * **Administration:** Neue Seite «Videokonferenzen» (API-Schlüssel und Webhook-Geheimnis verschlüsselt gespeichert, Verbindungstest, Hinweise zur Einrichtung beim Anbieter).
-* Die Funktion ist standardmässig aus. Voraussetzung ist ein API-Schlüssel von TheRedStonee, der den Messenger als erlaubte Einbettungs-Domain eingetragen hat. Das Meeting-Chat des Anbieters wird nicht in den Messenger gespiegelt.
+* Die Funktion ist standardmässig aus. Voraussetzung ist ein API-Schlüssel von TheRedStonee, der den Messenger als erlaubte Einbettungs-Domain (`embedOrigins`) und die Webhook-Adresse eingetragen hat. Der Chat innerhalb des Meetings wird nicht in den Messenger gespiegelt.
+
+### PWA und Touch-Geräte
+
+* **Kein Doppeltippen mehr:** Hover-Effekte gelten nur noch auf Geräten mit Maus. Bisher löste auf iPhone, iPad und Android der erste Tipp nur den «Hover» aus (z. B. die Optionen einer Unterhaltung) und erst der zweite die Aktion. Tippen löst jetzt sofort aus; zusätzlich entfallen die Wartezeit und der Doppeltipp-Zoom (`touch-action: manipulation`).
+* **Kein Auto-Zoom beim Tippen:** Eingabefelder haben auf Touch-Geräten 16 px. Darunter zoomt iOS beim Fokussieren die Seite heran und zoomt nicht zurück. Bleibt die Seite doch herangezoomt, wird sie nach dem Tippen zurückgesetzt. Der Zoom per Fingergeste bleibt erlaubt (Barrierefreiheit).
+* **Tastatur:** Die Seitenhöhe folgt der sichtbaren Fläche (`visualViewport`, `interactive-widget=resizes-content`). Kopfzeile und Eingabefeld bleiben sichtbar, der Verlauf bleibt am Ende, wenn er dort stand.
+* **Zurück-Geste:** Aus einem Chat führt Zurück (Android-Taste, Wischgeste) zur Unterhaltungsliste statt aus der App; die Meeting-Ansicht minimiert sich zuerst.
+* **Langes Drücken:** Auf einer Unterhaltung öffnet langes Drücken das Menü (iOS löst kein Kontextmenü aus; die Optionen-Taste erscheint nur mit Maus).
+* **Ruhigeres Verhalten:** Kein Pull-to-Refresh und kein Gummiband über die ganze Seite, Bedienelemente sind nicht markierbar und lösen kein Lupen-/Kontextmenü aus.
 * Datenbank-Migration 009 (automatisch beim Update).
 
 ## 1.9.0 – Zusammenarbeit: Threads, Umfragen, Termine, Entwürfe, Gäste

@@ -9,6 +9,7 @@ import { initSidebar, focusSearch } from './sidebar.js';
 import { initDetails } from './details.js';
 import { initThreads, loadDrafts } from './collab.js';
 import { startPolling, refreshTitle } from './poll.js';
+import { initViewport } from './viewport.js';
 import { acceptCall } from './meets.js';
 import { registerServiceWorker, syncPush, clearBadge } from './push.js';
 import { newChatDialog, shortcutsDialog } from './dialogs.js';
@@ -152,6 +153,7 @@ async function main() {
     history.replaceState(null, '', location.pathname + (q ? '?' + q : '') + location.hash);
   }
 
+  initViewport();
   startPolling();
   registerServiceWorker().then(() => syncPush());
   clearBadge();

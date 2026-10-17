@@ -26,6 +26,22 @@ export function h(tag, props, ...children) {
   return el;
 }
 
+/** Langes Drücken (Touch, 500 ms) als Ersatz für das Kontextmenü, das iOS nicht auslöst. Scrollen oder Bewegen bricht ab. */
+export function longPress(el, handler, ms = 500) {
+  let timer = null; let x = 0; let y = 0; let fired = false;
+  const cancel = () => { clearTimeout(timer); timer = null; };
+  el.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) return;
+    fired = false; x = e.touches[0].clientX; y = e.touches[0].clientY;
+    timer = setTimeout(() => { fired = true; handler({ x, y }); }, ms);
+  }, { passive: true });
+  el.addEventListener('touchmove', (e) => { const t = e.touches[0]; if (Math.abs(t.clientX - x) > 10 || Math.abs(t.clientY - y) > 10) cancel(); }, { passive: true });
+  el.addEventListener('touchend', cancel, { passive: true });
+  el.addEventListener('touchcancel', cancel, { passive: true });
+  // Nach dem langen Drücken soll der anschliessende «Klick» die Unterhaltung nicht öffnen
+  el.addEventListener('click', (e) => { if (fired) { e.preventDefault(); e.stopImmediatePropagation(); fired = false; } }, true);
+}
+
 export function append(el, children) {
   for (const c of children.flat(Infinity)) {
     if (c === null || c === undefined || c === false) continue;

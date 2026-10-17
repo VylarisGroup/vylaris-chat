@@ -1,5 +1,8 @@
 /** Tailwind-Konfiguration. Build: npm install && npm run build */
 module.exports = {
+  // hover:/group-hover: gelten nur auf Geräten mit echtem Hover. Sonst löst auf iOS/Android der erste Tipp nur den «Hover» aus
+  // und erst der zweite die Aktion (klebriger Hover).
+  future: { hoverOnlyWhenSupported: true },
   darkMode: 'class',
   content: [
     '../app/Views/**/*.php',

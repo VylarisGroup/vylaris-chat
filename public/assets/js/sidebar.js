@@ -2,7 +2,7 @@
 
 import { api } from './api.js';
 import { store } from './store.js';
-import { h, icon, clear, userAvatar, convAvatar, listTime, url, debounce, humanSize, state } from './util.js';
+import { h, icon, clear, userAvatar, convAvatar, longPress, listTime, url, debounce, humanSize, state } from './util.js';
 import { toast, menu, skeletonList } from './ui.js';
 import { convMenu } from './chat.js';
 import { notificationsPanel, settingsDialog, profileDialog, newChatDialog, shortcutsDialog } from './dialogs.js';
@@ -147,7 +147,7 @@ function convItem(c) {
     : null;
   const item = h('a', {
     href: `?c=${c.id}`, dataset: { cid: c.id },
-    class: `group relative flex cursor-pointer items-center gap-3 rounded-xl px-2.5 py-2.5 transition ${active ? 'bg-accent/10' : 'hover:bg-slate-100 dark:hover:bg-neutral-800'}`,
+    class: `group relative flex cursor-pointer select-none items-center gap-3 rounded-xl [-webkit-touch-callout:none] px-2.5 py-2.5 transition ${active ? 'bg-accent/10' : 'hover:bg-slate-100 dark:hover:bg-neutral-800'}`,
     'aria-current': active ? 'true' : null,
     onclick: (e) => { if (e.ctrlKey || e.metaKey || e.shiftKey) return; e.preventDefault(); store.emit('open-conversation', { id: c.id }); },
     oncontextmenu: (e) => { e.preventDefault(); convMenu(c, { x: e.clientX, y: e.clientY }); },
@@ -164,6 +164,7 @@ function convItem(c) {
         c.muted ? icon('bell-off', 'text-sm') : null,
         c.pinned ? icon('pin', 'text-sm') : null,
         badge))));
+  longPress(item, (pt) => convMenu(c, pt));
   const more = h('button', {
     class: 'btn-icon absolute right-1.5 top-1.5 hidden h-7 w-7 bg-white/90 text-lg shadow-sm group-hover:flex group-focus-within:flex dark:bg-neutral-800/90', 'aria-label': `Optionen für ${c.name}`,
     onclick: (e) => { e.preventDefault(); e.stopPropagation(); convMenu(c, e.currentTarget); },
