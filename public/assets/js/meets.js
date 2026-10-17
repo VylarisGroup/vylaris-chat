@@ -93,47 +93,99 @@ async function endMeeting(meetingId) {
   } catch (e) { toast(e.message, 'error'); }
 }
 
+const FULL = 'meet-overlay fixed inset-0 z-[80] flex flex-col bg-black sm:inset-4 sm:rounded-2xl sm:shadow-2xl';
+const MINI = 'meet-overlay fixed bottom-24 right-3 z-[80] h-28 w-40 overflow-hidden rounded-xl bg-black shadow-2xl sm:bottom-4 sm:right-4 sm:h-44 sm:w-72';
+const fmt = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+
 function open(meetingId, convId, link) {
   const origin = store.meets?.origin;
   if (!origin || !link.embed_url.startsWith(origin + '/')) { toast('Ungültige Meeting-Adresse.', 'error'); return; }
   const frame = h('iframe', { src: link.embed_url, allow: ALLOW, allowfullscreen: '', title: 'Videomeeting', class: 'h-full w-full border-0 bg-black', referrerpolicy: 'no-referrer' });
-  const bar = h('div', { class: 'flex shrink-0 items-center gap-2 bg-neutral-900 px-3 py-2 text-white' },
-    icon('video', 'text-lg text-emerald-400'),
-    h('span', { class: 'min-w-0 flex-1 truncate text-sm font-medium', 'data-meeting-title': '' }, 'Videomeeting'),
-    h('button', { type: 'button', class: 'btn-icon text-white hover:bg-white/10', 'aria-label': 'Meeting minimieren', title: 'Minimieren (Meeting läuft weiter)', onclick: minimize }, icon('minus')),
-    h('button', { type: 'button', class: 'btn-icon text-white hover:bg-white/10', 'aria-label': 'Meeting verlassen', title: 'Verlassen', onclick: close }, icon('phone-off')));
-  const root = h('div', { class: 'meet-overlay fixed inset-0 z-[80] flex flex-col bg-black sm:inset-4 sm:rounded-2xl sm:shadow-2xl', role: 'dialog', 'aria-label': 'Videomeeting', 'aria-modal': 'false' }, bar, h('div', { class: 'min-h-0 flex-1 overflow-hidden sm:rounded-b-2xl' }, frame));
-  document.body.append(root);
-  current = { meetingId, convId, root, frame, bar, mini: false };
+  // Grosse, gut treffbare «Chat»-Taste links: ein Tipp und das Meeting läuft klein weiter, der Chat ist sofort bedienbar.
+  const bar = h('div', { class: 'flex shrink-0 items-center gap-2 bg-neutral-900 px-2 py-2 text-white', style: { paddingTop: 'max(0.5rem, env(safe-area-inset-top))', paddingLeft: 'max(0.5rem, env(safe-area-inset-left))', paddingRight: 'max(0.5rem, env(safe-area-inset-right))' } },
+    h('button', { type: 'button', class: 'inline-flex h-10 items-center gap-1 rounded-xl bg-white/10 px-3 text-sm font-medium hover:bg-white/20', 'aria-label': 'Zurück zum Chat, Meeting läuft weiter', title: 'Zurück zum Chat (Esc). Das Meeting läuft weiter.', onclick: minimize }, icon('chevron-left', 'text-xl'), 'Chat'),
+    h('span', { class: 'flex min-w-0 flex-1 items-center gap-1.5 truncate text-sm font-medium' }, icon('video', 'text-lg text-emerald-400'), h('span', { class: 'truncate' }, 'Videomeeting'), h('span', { class: 'tabular-nums text-xs text-white/60', 'data-meet-time': '' }, '0:00')),
+    h('button', { type: 'button', class: 'inline-flex h-10 items-center gap-1 rounded-xl bg-red-600 px-3 text-sm font-medium hover:bg-red-500', 'aria-label': 'Meeting verlassen', title: 'Verlassen', onclick: close }, icon('phone-off', 'text-lg'), h('span', { class: 'hidden sm:inline' }, 'Verlassen')));
+  const body = h('div', { class: 'min-h-0 flex-1 overflow-hidden sm:rounded-b-2xl', style: { paddingBottom: 'env(safe-area-inset-bottom)' } }, frame);
+  const root = h('div', { class: FULL, role: 'dialog', 'aria-label': 'Videomeeting', 'aria-modal': 'false' }, bar, body);
+  // Minimiert: durchsichtige Fläche über dem Bild – ein Tipp irgendwo darauf öffnet das Meeting wieder gross
+  const cover = h('button', { type: 'button', class: 'absolute inset-0 z-10 hidden h-full w-full cursor-pointer bg-transparent', 'aria-label': 'Meeting wieder gross anzeigen', onclick: expand });
+  // Schwebende Statusleiste oben: immer erreichbar, solange das Meeting klein läuft
+  const pill = h('div', { class: 'fixed left-1/2 z-[81] hidden -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-full bg-emerald-600 py-1 pl-1 pr-1 text-sm font-medium text-white shadow-lg', style: { top: 'calc(env(safe-area-inset-top) + 4.25rem)' } },
+    h('button', { type: 'button', class: 'inline-flex items-center gap-2 rounded-full px-3 py-1.5 hover:bg-emerald-500', 'aria-label': 'Zurück zum Meeting', onclick: expand }, icon('video', 'text-lg'), 'Meeting läuft', h('span', { class: 'tabular-nums text-xs text-white/80', 'data-meet-time': '' }, '0:00'), h('span', { class: 'text-xs underline' }, 'Zurück')),
+    h('button', { type: 'button', class: 'inline-flex h-8 w-8 items-center justify-center rounded-full bg-red-600 hover:bg-red-500', 'aria-label': 'Meeting verlassen', title: 'Verlassen', onclick: close }, icon('phone-off', 'text-base')));
+  root.append(cover);
+  document.body.append(root, pill);
+  current = { meetingId, convId, root, frame, bar, cover, pill, mini: false, since: Date.now(), wake: null };
+  current.timer = setInterval(() => {
+    const t = fmt(Math.floor((Date.now() - current.since) / 1000));
+    for (const el of document.querySelectorAll('[data-meet-time]')) el.textContent = t;
+  }, 1000);
   window.addEventListener('message', onMessage);
+  document.addEventListener('keydown', onKey);
+  window.addEventListener('popstate', onPop);
+  // Zurück-Geste / Zurück-Taste (Android, Browser): erst das Meeting minimieren statt die App zu verlassen
+  history.pushState({ meet: meetingId }, '');
+  holdScreen();
+}
+
+function onKey(e) { if (e.key === 'Escape' && current && !current.mini) { e.preventDefault(); minimize(); } }
+
+function onPop() {
+  if (current && !current.mini) {
+    current.poppedByBack = true;
+    minimize();
+  }
 }
 
 function minimize() {
-  if (!current) return;
+  if (!current || current.mini) return;
   current.mini = true;
-  current.root.className = 'meet-overlay fixed bottom-4 right-4 z-[80] flex h-44 w-72 flex-col overflow-hidden rounded-xl bg-black shadow-2xl';
+  current.root.className = MINI;
   current.bar.classList.add('hidden');
-  if (!current.pip) {
-    current.pip = h('button', { type: 'button', class: 'absolute right-1 top-1 z-10 flex items-center gap-1 rounded-lg bg-neutral-900/85 px-2 py-1 text-xs text-white hover:bg-neutral-800', 'aria-label': 'Meeting vergrössern', onclick: expand }, icon('expand-alt', 'text-sm'), 'Öffnen');
-    current.root.append(current.pip);
-  }
-  current.pip.classList.remove('hidden');
+  current.cover.classList.remove('hidden');
+  current.pill.classList.remove('hidden');
+  current.pill.classList.add('inline-flex');
+  // Der in open() angelegte Verlaufseintrag wird entfernt, wenn nicht schon die Zurück-Geste ihn verbraucht hat
+  if (!current.poppedByBack && history.state?.meet === current.meetingId) history.back();
+  current.poppedByBack = false;
+  store.emit('meet-mini', true);
 }
 
 function expand() {
-  if (!current) return;
+  if (!current || !current.mini) return;
   current.mini = false;
-  current.root.className = 'meet-overlay fixed inset-0 z-[80] flex flex-col bg-black sm:inset-4 sm:rounded-2xl sm:shadow-2xl';
+  current.root.className = FULL;
   current.bar.classList.remove('hidden');
-  current.pip?.classList.add('hidden');
+  current.cover.classList.add('hidden');
+  current.pill.classList.add('hidden');
+  current.pill.classList.remove('inline-flex');
+  history.pushState({ meet: current.meetingId }, '');
+  store.emit('meet-mini', false);
 }
+
+/** Bildschirm während des Meetings wach halten (nicht überall verfügbar; Fehler sind unkritisch). */
+async function holdScreen() {
+  try {
+    if (current && 'wakeLock' in navigator) current.wake = await navigator.wakeLock.request('screen');
+  } catch { /* nicht erlaubt oder nicht unterstützt */ }
+}
+document.addEventListener('visibilitychange', () => { if (current && !document.hidden && (!current.wake || current.wake.released)) holdScreen(); });
 
 function close() {
   if (!current) return;
   window.removeEventListener('message', onMessage);
+  document.removeEventListener('keydown', onKey);
+  window.removeEventListener('popstate', onPop);
+  clearInterval(current.timer);
+  try { current.wake?.release(); } catch { /* ignorieren */ }
+  const stateIsOurs = !current.mini && history.state?.meet === current.meetingId;
   current.root.remove(); // Das Entfernen des iframes trennt die Verbindung
+  current.pill.remove();
   const mid = current.meetingId;
   current = null;
+  if (stateIsOurs) history.back();
+  store.emit('meet-mini', false);
   api.get(`/api/meetings/${mid}`).then((r) => r.message && store.emit('message-update', r.message)).catch(() => {});
 }
 
@@ -144,4 +196,4 @@ function onMessage(e) {
 }
 
 // Beim Schliessen des Tabs sauber verlassen
-window.addEventListener('pagehide', () => { if (current) current.root.remove(); });
+window.addEventListener('pagehide', () => { if (current) { current.root.remove(); current.pill.remove(); } });
