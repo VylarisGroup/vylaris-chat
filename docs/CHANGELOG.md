@@ -20,6 +20,7 @@
 
 ### Behoben
 
+* Administration: «Videokonferenzen» und der neue «KI-Assistent» standen in der eingeklappten Gruppe «System» und waren schwer zu finden. Sie haben jetzt die eigene Gruppe «Funktionen», und Menügruppen sind beim ersten Besuch offen (danach merkt sich der Browser, was du geschlossen hast).
 * In der Chat-Kopfzeile erschien das Wort «null», wenn kein Meeting-Knopf angezeigt wird.
 * Umfrage- und Termin-Knöpfe liessen sich in manchen Fällen nicht ausblenden.
 

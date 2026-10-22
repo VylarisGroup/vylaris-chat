@@ -28,9 +28,11 @@ $navGroups = [
         ['settings', 'admin/settings', 'Einstellungen', 'cog'],
         ['backup', 'admin/backup', 'Backup', 'archive'],
         ['operations', 'admin/operations', 'Betrieb', 'pulse'],
+        ['tests', 'admin/tests', 'Systemtest', 'check-shield'],
+    ]],
+    ['Funktionen', 'extension', [
         ['meets', 'admin/meets', 'Videokonferenzen', 'video'],
         ['ai', 'admin/ai', 'KI-Assistent', 'bot'],
-        ['tests', 'admin/tests', 'Systemtest', 'check-shield'],
     ]],
     ['Software', 'package', [
         ['license', 'admin/license', 'Lizenz', 'key'],

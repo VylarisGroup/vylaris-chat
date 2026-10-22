@@ -6,8 +6,9 @@
   const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) { /* optional */ } };
   document.querySelectorAll('details[data-nav-group]').forEach((d) => {
     const id = d.getAttribute('data-nav-group');
-    // Die Gruppe der aktuellen Seite bleibt offen; die übrigen merken sich den letzten Zustand.
-    if (!d.hasAttribute('data-active') && saved[id] === true) d.open = true;
+    // Die Gruppe der aktuellen Seite bleibt offen. Die übrigen sind beim ersten Besuch offen (damit neue Menüpunkte sichtbar sind)
+    // und merken sich danach, ob man sie geschlossen hat.
+    if (!d.hasAttribute('data-active') && saved[id] !== false) d.open = true;
     d.addEventListener('toggle', () => { saved[id] = d.open; persist(); });
   });
   // Mobil ist das ganze Menü eingeklappt, am Desktop immer offen.

@@ -393,6 +393,34 @@ final class SelfTest
             return $r;
         };
         return [
+            'Administrations-Menü: jeder Eintrag hat eine Route, Funktionen sind sichtbar eingeordnet' => static function () use ($router) {
+                $src = (string) file_get_contents(ROOT_PATH . '/app/Views/layouts/main.php');
+                self::ok((bool) preg_match_all("~\\['([a-z]+)', '(admin(?:/[a-z]+)?)', '([^']+)', '([a-z-]+)'\\]~", $src, $m, PREG_SET_ORDER), 'Menüeinträge nicht gefunden');
+                $get = [];
+                foreach ($router()->all() as $r) {
+                    if ($r['method'] === 'GET') {
+                        $get[] = $r['regex'];
+                    }
+                }
+                $keys = [];
+                foreach ($m as [, $key, $path, $label]) {
+                    $keys[$key] = $path;
+                    $found = false;
+                    foreach ($get as $re) {
+                        if (preg_match($re, '/' . $path)) {
+                            $found = true;
+                            break;
+                        }
+                    }
+                    self::ok($found, 'Menüeintrag «' . $label . '» ohne GET-Route ' . $path);
+                }
+                foreach (['meets' => 'admin/meets', 'ai' => 'admin/ai'] as $k => $p) {
+                    self::ok(($keys[$k] ?? '') === $p, 'Menüeintrag fehlt: ' . $p);
+                }
+                // Gruppe mit den Funktionen muss ein eigener, nicht in «System» versteckter Eintrag sein
+                self::ok(str_contains($src, "['Funktionen'"), 'Gruppe «Funktionen» fehlt');
+                return count($keys) . ' Menüeinträge';
+            },
             'Alle Routen verweisen auf vorhandene Methoden' => static function () use ($router) {
                 $routes = $router()->all();
                 foreach ($routes as $r) {
