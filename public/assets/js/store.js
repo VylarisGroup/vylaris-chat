@@ -6,7 +6,7 @@ export const store = {
   me: null,
   ready: false,
   branding: { company_name: '', accent_color: '#2f6fed', has_logo: false },
-  limits: { max_upload_bytes: 0, max_body: 8000, edit_minutes: 0 },
+  limits: { max_upload_bytes: 0, max_body: 8000, edit_minutes: 0, voice_enabled: false, voice_max_seconds: 300 },
   reactions: [],
   conversations: new Map(), // id -> Konversation (Listenansicht)
   activeId: null,

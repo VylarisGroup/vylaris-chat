@@ -705,6 +705,8 @@ final class AdminController extends Controller
         $phpMb = max(1, intdiv(min(Files::iniBytes('upload_max_filesize'), Files::iniBytes('post_max_size')), 1048576));
         $maxMb = $this->intIn($r, 'max_upload_mb', 1, 2048);
         Settings::set('max_upload_mb', (string) $maxMb);
+        Settings::set('voice_enabled', $r->bool('voice_enabled') ? '1' : '0');
+        Settings::set('voice_max_seconds', (string) $this->intIn($r, 'voice_max_seconds', 5, 1800));
         Settings::set('message_edit_minutes', (string) $this->intIn($r, 'message_edit_minutes', 0, 10080));
         Settings::set('retention_days_messages', (string) $this->intIn($r, 'retention_days_messages', 0, 3650));
         Settings::set('retention_days_audit', (string) $this->intIn($r, 'retention_days_audit', 0, 3650));

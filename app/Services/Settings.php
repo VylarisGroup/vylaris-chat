@@ -16,6 +16,8 @@ final class Settings
         'registration_domains' => '',
         'require_email_verification' => '1',
         'max_upload_mb' => '25',
+        'voice_enabled' => '1',
+        'voice_max_seconds' => '300',
         'retention_days_messages' => '0',
         'retention_days_audit' => '365',
         'retention_days_inactive_orphan_uploads' => '2',

@@ -435,7 +435,8 @@ final class Chat
         if ($lastIds) {
             foreach (Database::all(
                 'SELECT m.id, m.sender_id, m.kind, m.body, m.deleted_at, m.created_at, u.display_name,
-                        (SELECT COUNT(*) FROM message_attachments a WHERE a.message_id = m.id) AS att
+                        (SELECT COUNT(*) FROM message_attachments a WHERE a.message_id = m.id) AS att,
+                        (SELECT COUNT(*) FROM message_attachments a WHERE a.message_id = m.id AND a.is_voice = 1) AS voice
                  FROM messages m LEFT JOIN users u ON u.id = m.sender_id WHERE m.id IN (' . Database::in($lastIds) . ')',
                 array_values($lastIds)
             ) as $mrow) {
@@ -467,7 +468,7 @@ final class Chat
             $lm = $r['last_message_id'] ? ($last[(int) $r['last_message_id']] ?? null) : null;
             $preview = null;
             if ($lm) {
-                $text = $lm['deleted_at'] !== null ? 'Nachricht gelöscht' : (trim((string) $lm['body']) !== '' ? mb_substr(preg_replace('/\s+/u', ' ', (string) $lm['body']) ?? '', 0, 120) : ((int) $lm['att'] > 0 ? 'Anhang' : ''));
+                $text = $lm['deleted_at'] !== null ? 'Nachricht gelöscht' : (trim((string) $lm['body']) !== '' ? mb_substr(preg_replace('/\s+/u', ' ', (string) $lm['body']) ?? '', 0, 120) : ((int) $lm['att'] > 0 ? ((int) $lm['voice'] > 0 ? 'Sprachnachricht' : 'Anhang') : ''));
                 if ($lm['deleted_at'] === null && $lm['kind'] === 'poll') {
                     $text = 'Umfrage: ' . $text;
                 } elseif ($lm['deleted_at'] === null && $lm['kind'] === 'event') {

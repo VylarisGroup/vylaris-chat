@@ -1,5 +1,15 @@
 # Änderungen
 
+## 1.17.0 – Sprachnachrichten
+
+* **Aufnehmen:** Im Eingabefeld gibt es einen Mikrofon-Knopf. Ein Tipp startet die Aufnahme mit Timer und Pegelanzeige, mit dem Papierkorb verwirfst du sie, mit «Senden» geht sie sofort raus. Beim Wechsel in einen anderen Chat wird eine laufende Aufnahme verworfen. Die Länge ist begrenzt (Standard 5 Minuten, einstellbar) und läuft das Limit ab, wird die Nachricht automatisch gesendet.
+* **Abspielen:** In der Nachricht erscheint ein Player mit Wellenform, Abspielen/Pause, Spulen per Tipp auf die Wellenform (oder mit den Pfeiltasten), Dauer und Tempo 1×/1,5×/2×. Es spielt immer nur eine Sprachnachricht gleichzeitig.
+* **Überall nutzbar:** In Einzelchats, Gruppen und in den Notizen, auch beim Weiterleiten und «In Notizen speichern» (Dauer bleibt erhalten). In der Chat-Liste und in Zitaten steht «Sprachnachricht».
+* **Formate:** Der Browser nimmt auf, was er kann (WebM/Opus in Chrome, Edge, Firefox, MP4/AAC in Safari). Der Server prüft den Inhalt, nicht nur die Endung. Alte Safari-Versionen können WebM möglicherweise nicht abspielen, dann bietet der Player den Download an.
+* **Administration:** *Einstellungen → System*: Sprachnachrichten erlauben (Standard an) und maximale Dauer. Aufnahmen werden wie Dateien gespeichert, zählen zur Dateigrösse und werden mit den Nachrichten aufbewahrt und gelöscht.
+* **Datenschutz und Sicherheit:** Das Mikrofon wird nur nach Tipp auf den Knopf und nach deiner Freigabe im Browser verwendet und danach sofort wieder freigegeben. Aufnahme erfordert HTTPS (oder localhost). Die KI sieht von Sprachnachrichten nur, dass eine existiert (keine Transkription).
+* Datenbank-Migration 011 (automatisch beim Update).
+
 ## 1.16.0 – Notizen-Chat und KI-Assistent
 
 ### Notizen (Chat mit dir selbst)

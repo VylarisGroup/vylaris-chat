@@ -758,6 +758,14 @@ final class SelfTest
                 $g = self::newUser('NG', 'guest');
                 self::ok(Chat::ensureNotes((int) $g['id']) === null, 'Gäste haben keine Notizen');
             },
+            'Sprachnachrichten: Formate, Dauer-Limit und Anhangs-Ansicht' => static function () {
+                self::ok(isset(Files::VOICE_MIMES['audio/webm'], Files::VOICE_MIMES['audio/mp4']) && !isset(Files::VOICE_MIMES['text/plain'], Files::VOICE_MIMES['audio/x-wav']), 'Formatliste');
+                $v = Files::voiceMaxSeconds();
+                self::ok($v >= 5 && $v <= 1800, 'Dauer-Limit ausserhalb von 5 bis 1800 s: ' . $v);
+                $view = Messages::attachmentView(['id' => 1, 'original_name' => 'Sprachnachricht-x.webm', 'mime_type' => 'audio/webm', 'size_bytes' => 100, 'is_image' => 0, 'width' => null, 'height' => null, 'is_voice' => 1, 'duration_ms' => 4200, 'created_at' => now()]);
+                self::ok($view['voice'] === true && $view['duration_ms'] === 4200, 'Anhangs-Ansicht');
+                self::ok(Database::value("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'message_attachments' AND column_name IN ('is_voice','duration_ms')") == 2, 'Spalten fehlen');
+            },
             'KI: Endpunkt-Adresse und Nutzungsrecht' => static function () use ($restore) {
                 try {
                     Settings::set('ai_endpoint', 'https://api.example.org/v1/');

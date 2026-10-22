@@ -26,6 +26,8 @@ final class Messages
             'mime' => $a['mime_type'],
             'size' => (int) $a['size_bytes'],
             'is_image' => (bool) $a['is_image'],
+            'voice' => !empty($a['is_voice']),
+            'duration_ms' => isset($a['duration_ms']) ? (int) $a['duration_ms'] : null,
             'width' => $a['width'] !== null ? (int) $a['width'] : null,
             'height' => $a['height'] !== null ? (int) $a['height'] : null,
             'created_at' => iso($a['created_at'] ?? null),
@@ -126,13 +128,14 @@ final class Messages
         if ($replyIds) {
             foreach (Database::all(
                 'SELECT m.id, m.body, m.deleted_at, u.display_name,
-                        (SELECT COUNT(*) FROM message_attachments a WHERE a.message_id = m.id) AS att
+                        (SELECT COUNT(*) FROM message_attachments a WHERE a.message_id = m.id) AS att,
+                        (SELECT COUNT(*) FROM message_attachments a WHERE a.message_id = m.id AND a.is_voice = 1) AS voice
                  FROM messages m LEFT JOIN users u ON u.id = m.sender_id WHERE m.id IN (' . Database::in($replyIds) . ')',
                 $replyIds
             ) as $r) {
                 $text = $r['deleted_at'] !== null ? '' : mb_substr(preg_replace('/\s+/u', ' ', (string) $r['body']) ?? '', 0, 140);
                 if ($text === '' && $r['deleted_at'] === null && (int) $r['att'] > 0) {
-                    $text = 'Anhang';
+                    $text = (int) $r['voice'] > 0 ? 'Sprachnachricht' : 'Anhang';
                 }
                 $replies[(int) $r['id']] = ['id' => (int) $r['id'], 'sender_name' => $r['display_name'] ?? 'Unbekannt', 'text' => $text, 'deleted' => $r['deleted_at'] !== null];
             }

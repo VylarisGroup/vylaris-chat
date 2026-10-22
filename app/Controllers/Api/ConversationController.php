@@ -189,6 +189,7 @@ final class ConversationController extends Controller
         if (!$file) {
             throw new HttpException(422, 'Es wurde keine Datei übertragen (möglicherweise ist sie grösser als ' . human_size(Files::maxBytes()) . ').');
         }
-        return $this->json(['attachment' => Files::upload((int) $this->user()['id'], $this->id($r), $file)], 201);
+        $voice = $r->bool('voice') ? ['duration_ms' => $r->int('duration_ms')] : null;
+        return $this->json(['attachment' => Files::upload((int) $this->user()['id'], $this->id($r), $file, $voice)], 201);
     }
 }

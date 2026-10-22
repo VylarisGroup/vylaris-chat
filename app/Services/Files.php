@@ -84,8 +84,34 @@ final class Files
 
     // --------------------------------------------------------------- Upload
 
-    public static function upload(int $userId, int $conversationId, array $file): array
+    /** Audioformate, die Browser bei der Aufnahme erzeugen (MediaRecorder): WebM/Opus (Chrome, Firefox, Edge), Ogg/Opus, MP4/AAC (Safari). */
+    public const VOICE_MIMES = [
+        'audio/webm' => 'webm', 'video/webm' => 'webm', 'audio/ogg' => 'ogg', 'application/ogg' => 'ogg', 'video/ogg' => 'ogg',
+        'audio/mp4' => 'm4a', 'audio/x-m4a' => 'm4a', 'video/mp4' => 'm4a', 'audio/aac' => 'aac', 'audio/mpeg' => 'mp3',
+    ];
+
+    public static function voiceMaxSeconds(): int
     {
+        return max(5, min(1800, Settings::int('voice_max_seconds')));
+    }
+
+    /**
+     * @param array{duration_ms:int}|null $voice Sprachnachricht: erzwingt Audioformat, Dauer-Limit und festen Dateinamen
+     */
+    public static function upload(int $userId, int $conversationId, array $file, ?array $voice = null): array
+    {
+        if ($voice !== null) {
+            if (!Settings::bool('voice_enabled')) {
+                throw new HttpException(403, 'Sprachnachrichten sind nicht aktiviert.');
+            }
+            $voice['duration_ms'] = (int) $voice['duration_ms'];
+            if ($voice['duration_ms'] < 300) {
+                throw new HttpException(422, 'Die Sprachnachricht ist zu kurz.');
+            }
+            if ($voice['duration_ms'] > (self::voiceMaxSeconds() + 3) * 1000) {
+                throw new HttpException(422, 'Die Sprachnachricht ist zu lang (höchstens ' . self::voiceMaxSeconds() . ' Sekunden).');
+            }
+        }
         $uploader = User::find($userId);
         if ($uploader) {
             Privacy::assertNotRestricted($uploader);
@@ -115,6 +141,13 @@ final class Files
         }
 
         $original = self::sanitizeName((string) ($file['name'] ?? 'datei'));
+        if ($voice !== null) {
+            $vm = self::detectMime($tmp);
+            if (!isset(self::VOICE_MIMES[$vm])) {
+                throw new HttpException(422, 'Das Audioformat der Aufnahme wird nicht unterstützt.');
+            }
+            $original = 'Sprachnachricht-' . gmdate('Ymd-His') . '.' . self::VOICE_MIMES[$vm];
+        }
         $ext = strtolower(pathinfo($original, PATHINFO_EXTENSION));
         if (str_starts_with($original, '.') || in_array($ext, self::BLOCKED_EXTS, true)) {
             throw new HttpException(422, 'Dieser Dateityp ist aus Sicherheitsgründen nicht erlaubt.');
@@ -154,9 +187,9 @@ final class Files
         @chmod($dest, 0640);
 
         $id = Database::insert(
-            'INSERT INTO message_attachments (message_id, conversation_id, uploader_id, storage_name, original_name, mime_type, size_bytes, is_image, width, height, created_at)
-             VALUES (NULL,?,?,?,?,?,?,?,?,?,?)',
-            [$conversationId, $userId, $storage, $original, $isImage ? $mime : ($mime ?: 'application/octet-stream'), $size, $isImage ? 1 : 0, $width, $height, now()]
+            'INSERT INTO message_attachments (message_id, conversation_id, uploader_id, storage_name, original_name, mime_type, size_bytes, is_image, width, height, is_voice, duration_ms, created_at)
+             VALUES (NULL,?,?,?,?,?,?,?,?,?,?,?,?)',
+            [$conversationId, $userId, $storage, $original, $isImage ? $mime : ($mime ?: 'application/octet-stream'), $size, $isImage ? 1 : 0, $width, $height, $voice !== null ? 1 : 0, $voice['duration_ms'] ?? null, now()]
         );
         return Messages::attachmentView(Database::one('SELECT * FROM message_attachments WHERE id = ?', [$id]) ?? []);
     }
@@ -176,9 +209,9 @@ final class Files
         }
         @chmod($dest, 0640);
         Database::exec(
-            'INSERT INTO message_attachments (message_id, conversation_id, uploader_id, storage_name, original_name, mime_type, size_bytes, is_image, width, height, created_at)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?)',
-            [$newMessageId, $targetConversationId, $userId, $storage, $att['original_name'], $att['mime_type'], $att['size_bytes'], $att['is_image'], $att['width'], $att['height'], now()]
+            'INSERT INTO message_attachments (message_id, conversation_id, uploader_id, storage_name, original_name, mime_type, size_bytes, is_image, width, height, is_voice, duration_ms, created_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            [$newMessageId, $targetConversationId, $userId, $storage, $att['original_name'], $att['mime_type'], $att['size_bytes'], $att['is_image'], $att['width'], $att['height'], $att['is_voice'] ?? 0, $att['duration_ms'] ?? null, now()]
         );
     }
 

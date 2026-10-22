@@ -9,6 +9,7 @@ import {
 } from './util.js';
 import { toast, confirmDialog, menu, emojiPicker, closeMenu, skeletonMessages } from './ui.js';
 import { forwardDialog, reportDialog, lightbox } from './dialogs.js';
+import { voiceSupported, startVoice, cancelVoice, voiceRecording, voiceNode } from './voice.js';
 import { meetingNode, canStartMeeting, startMeeting } from './meets.js';
 import { pollNode, eventNode, pollDialog, eventDialog, threadSummary, openThread, closeThread, threadMessage, threadIsOpenFor, queueDraft, canCreate } from './collab.js';
 
@@ -197,6 +198,7 @@ export async function openConversation(id, { around = null, focus = true } = {})
   saveDraft();
   closeMenu();
   const changed = store.activeId !== id;
+  cancelVoice();
   store.activeId = id;
   view = { convId: id, replyTo: null, editing: null, loadingOlder: false, loadingNewer: false, pendingNew: 0 };
   store.mobileView = 'chat';
@@ -204,6 +206,7 @@ export async function openConversation(id, { around = null, focus = true } = {})
   el.chat.classList.replace('hidden', 'flex');
   store.typing = { conversation_id: id, names: [] };
   renderTyping();
+  updateVoiceTool();
   if (el.pollTool) { const off = !canCreate() || store.active?.type === 'notes'; for (const t of [el.pollTool, el.eventTool]) { t.hidden = off; t.style.display = off ? 'none' : ''; } }
   store.emit('active');
   store.emit('mobile-view');
@@ -543,6 +546,7 @@ function messageNode(m, { continues, last, group }) {
 }
 
 function attachmentNode(a, own) {
+  if (a.voice) return voiceNode(a, own);
   if (a.is_image) {
     const img = h('img', {
       src: url(`files/${a.id}?thumb=1`), alt: a.name, loading: 'lazy',
@@ -689,18 +693,21 @@ function buildComposer() {
   el.mention = h('div', { class: 'absolute bottom-full left-3 z-30 mb-2 hidden max-h-56 w-64 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-pop dark:border-neutral-700 dark:bg-neutral-800', role: 'listbox', 'aria-label': 'Erwähnung auswählen' });
   el.sendBtn = h('button', { class: 'btn btn-primary h-10 w-10 shrink-0 rounded-xl p-0', 'aria-label': 'Senden', title: 'Senden (Enter)', onclick: send }, icon('send', 'text-xl'));
   const tool = (ic, label, fn) => h('button', { class: 'btn-icon h-8 w-8 text-lg', type: 'button', 'aria-label': label, title: label, onclick: fn }, icon(ic));
+  el.voiceHost = h('div', { class: 'hidden' });
   el.composerWrap = h('div', { class: 'relative shrink-0 border-t border-slate-200 bg-white px-3 pb-3 pt-2 sm:px-4 dark:border-neutral-800 dark:bg-neutral-900' },
     el.mention, el.bars,
     h('div', { class: 'rounded-2xl border border-slate-300 bg-white transition focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25 dark:border-neutral-700 dark:bg-neutral-800' },
+      el.voiceHost,
       el.attachList,
       el.input,
-      h('div', { class: 'flex items-center gap-0.5 px-2 pb-2' },
+      el.toolRow = h('div', { class: 'flex items-center gap-0.5 px-2 pb-2' },
         tool('bold', 'Fett (Strg+B)', () => wrapSel('**')),
         tool('italic', 'Kursiv (Strg+I)', () => wrapSel('_')),
         tool('code-alt', 'Code', () => wrapSel('`')),
         tool('at', 'Person erwähnen', () => { insertAtCursor('@'); onInput(); }),
         tool('smile', 'Emoji einfügen', (e) => emojiPicker(e.currentTarget, (ch) => insertAtCursor(ch))),
         tool('paperclip', 'Datei anhängen', () => el.fileInput.click()),
+        el.micTool = tool('microphone', 'Sprachnachricht aufnehmen', recordVoice),
         el.pollTool = tool('poll', 'Umfrage erstellen', () => view.convId && pollDialog(view.convId)),
         el.eventTool = tool('calendar-event', 'Termin erstellen', () => view.convId && eventDialog(view.convId)),
         h('span', { class: 'flex-1' }),
@@ -858,6 +865,42 @@ function cancelBars() {
   saveDraft();
 }
 
+// Sprachnachrichten
+function updateVoiceTool() {
+  if (!el.micTool) return;
+  const off = !store.limits.voice_enabled || !voiceSupported();
+  el.micTool.hidden = off; el.micTool.style.display = off ? 'none' : '';
+}
+
+async function recordVoice() {
+  if (!view.convId || view.editing || voiceRecording()) return;
+  if (attachments().some((a) => a.status === 'uploading')) { toast('Bitte warte, bis die Uploads abgeschlossen sind.', 'warn'); return; }
+  const convId = view.convId;
+  const bar = await startVoice({
+    maxSeconds: store.limits.voice_max_seconds || 300,
+    onFinish: (file, ms) => { if (view.convId === convId) addVoice(file, ms, convId); else toast('Die Aufnahme wurde verworfen, weil du den Chat gewechselt hast.', 'warn'); },
+    onClose: () => { el.voiceHost.classList.add('hidden'); clear(el.voiceHost); el.input.classList.remove('hidden'); el.toolRow.classList.remove('hidden'); el.attachList.classList.toggle('hidden', !((store.drafts.get(view.convId) || {}).attachments || []).length); },
+  });
+  if (!bar) return;
+  el.input.classList.add('hidden'); el.toolRow.classList.add('hidden'); el.attachList.classList.add('hidden');
+  el.voiceHost.classList.remove('hidden'); el.voiceHost.append(bar);
+}
+
+function addVoice(file, ms, convId) {
+  const list = attachments();
+  const item = { key: uuid(), name: 'Sprachnachricht', size: file.size, voice: true, progress: 0, status: 'uploading', attachment: null, xhr: null, error: '' };
+  list.push(item);
+  renderAttachments();
+  api.upload(`/api/conversations/${convId}/uploads`, file, (p, xhr) => { if (xhr) item.xhr = xhr; item.progress = p; if (view.convId === convId) renderAttachments(); }, 'file', { voice: 1, duration_ms: ms })
+    .then((res) => { item.status = 'done'; item.attachment = res.attachment; item.progress = 1; })
+    .catch((e) => { item.status = 'error'; item.error = e.message; toast(`Sprachnachricht fehlgeschlagen: ${e.message}`, 'error'); })
+    .finally(() => {
+      if (view.convId !== convId) return;
+      renderAttachments();
+      if (item.status === 'done') send(); // Sprachnachrichten gehen sofort raus
+    });
+}
+
 // Anhänge
 function addFiles(files) {
   if (!view.convId || !files.length) return;
@@ -890,7 +933,7 @@ function renderAttachments() {
   for (const it of list) {
     const bar = it.status === 'uploading' ? h('span', { class: 'mt-1 block h-1 overflow-hidden rounded-full bg-slate-200 dark:bg-neutral-700' }, h('span', { class: 'block h-full rounded-full bg-accent transition-all', style: { width: `${Math.round(it.progress * 100)}%` } })) : null;
     el.attachList.append(h('div', { class: `flex w-52 items-center gap-2 rounded-xl border px-2.5 py-1.5 text-xs ${it.status === 'error' ? 'border-red-300 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300' : 'border-slate-200 bg-slate-50 dark:border-neutral-700 dark:bg-neutral-900'}` },
-      icon(it.attachment?.is_image ? 'image' : 'file', 'text-xl'),
+      icon(it.voice ? 'microphone' : it.attachment?.is_image ? 'image' : 'file', 'text-xl'),
       h('span', { class: 'min-w-0 flex-1' }, h('span', { class: 'block truncate font-medium' }, it.name), h('span', { class: 'block opacity-70' }, it.status === 'error' ? it.error : (it.status === 'uploading' ? `${Math.round(it.progress * 100)} %` : humanSize(it.size))), bar),
       h('button', { class: 'btn-icon h-6 w-6 text-base', 'aria-label': `${it.name} entfernen`, onclick: () => { it.xhr?._abort?.(); const l = attachments(); l.splice(l.indexOf(it), 1); renderAttachments(); } }, icon('x'))));
   }
@@ -942,7 +985,7 @@ async function transmit(p) {
     const cache = store.msgs.get(p.conversation_id);
     if (cache) mergeMessage(cache, res.message);
     const c = store.conv(p.conversation_id);
-    if (c) { c.last_read_message_id = Math.max(c.last_read_message_id, res.message.id); c.last_message_at = res.message.created_at; c.last_message = { text: res.message.body || 'Anhang', sender: store.me.display_name, sender_id: store.me.id, kind: 'text', deleted: false, at: res.message.created_at }; store.emit('conversations'); }
+    if (c) { c.last_read_message_id = Math.max(c.last_read_message_id, res.message.id); c.last_message_at = res.message.created_at; c.last_message = { text: res.message.body || (res.message.attachments?.[0]?.voice ? 'Sprachnachricht' : 'Anhang'), sender: store.me.display_name, sender_id: store.me.id, kind: 'text', deleted: false, at: res.message.created_at }; store.emit('conversations'); }
   } catch (e) {
     if (e.status >= 400 && e.status < 500 && e.status !== 0 && e.status !== 429 && e.status !== 408) {
       // Dauerhafter Fehler (z. B. nicht mehr Mitglied): nicht erneut versuchen

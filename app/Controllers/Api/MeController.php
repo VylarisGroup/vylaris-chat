@@ -54,6 +54,8 @@ final class MeController extends Controller
             'limits' => [
                 'max_upload_bytes' => Files::maxBytes(),
                 'max_body' => Messages::MAX_BODY,
+                'voice_enabled' => Settings::bool('voice_enabled'),
+                'voice_max_seconds' => max(5, min(1800, Settings::int('voice_max_seconds'))),
                 'edit_minutes' => Settings::int('message_edit_minutes'),
             ],
             'reactions' => Messages::REACTIONS,

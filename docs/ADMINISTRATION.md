@@ -22,6 +22,10 @@ Kennzahlen (Benutzer, Gruppen, Nachrichten, Dateien, offene Meldungen), Systemzu
 - **Entwürfe:** Werden bis zu 30 Tage serverseitig gespeichert, damit sie auf allen Geräten verfügbar sind.
 - Der Kalender-Link ist öffentlich erreichbar (ohne Anmeldung), aber nur mit dem 48-stelligen Schlüssel; Fehlversuche werden je IP-Adresse begrenzt.
 
+## Sprachnachrichten
+
+Unter *Einstellungen → System* schaltest du Sprachnachrichten ein oder aus und legst die maximale Dauer fest (5 bis 1800 Sekunden, Standard 300). Sie werden wie Dateien im Speicherverzeichnis abgelegt (rund 0,5 MB pro Minute), unterliegen der Dateigrössen-Grenze, der Aufbewahrungsfrist und der Löschung der Nachricht. Das Mikrofon braucht eine HTTPS-Verbindung. Es gibt keine automatische Umwandlung oder Texterkennung.
+
 ## KI-Assistent
 
 Unter *System → KI-Assistent* verbindest du einen OpenAI-kompatiblen Dienst: Basis-Adresse (z. B. `https://api.openai.com/v1`, bei lokalen Servern `http://host:11434/v1`), API-Schlüssel (leer bei lokalen Servern), Modellname, Systemprompt, Temperatur (leer = Modellstandard), maximale Antwortlänge, Kontext-Limit (höchstens 90 000 Tokens, geschätzt mit 3 Zeichen pro Token) und Zeitlimit. «Verbindung testen» sendet eine kurze Testfrage mit den gespeicherten Werten. Es gibt genau eine KI; sie legt beim Aktivieren das Systemkonto @ki an (ohne Anmeldung, kein Lizenzplatz). Wer sie nutzen darf, steuerst du unter «Wer darf die KI nutzen?» (alle ohne Gäste / nur Administratoren / Administratoren und Liste von Benutzernamen) sowie über das Stundenlimit pro Person. Gruppen holen die KI über «Mitglieder hinzufügen» (nur Moderation), den mitgelesenen Verlauf wählt die Moderation in den Gruppendetails. Wird die KI deaktiviert, bleiben Chats erhalten, sie antwortet aber nicht mehr. Datenschutz: Der Anbieter erhält Nachrichtentexte (siehe Datenschutzerklärung); Vertrag (AVV) und Standort prüfen. Fehler der Anfragen stehen im Protokoll (`storage/logs`).

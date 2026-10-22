@@ -303,7 +303,7 @@ final class Ai
         $names = [];
         $attach = [];
         $ids = array_map(static fn ($r) => (int) $r['id'], $rows);
-        foreach (Database::all('SELECT message_id, original_name FROM message_attachments WHERE message_id IN (' . Database::in($ids) . ')', $ids) as $a) {
+        foreach (Database::all('SELECT message_id, IF(is_voice = 1, \'Sprachnachricht\', original_name) AS original_name FROM message_attachments WHERE message_id IN (' . Database::in($ids) . ')', $ids) as $a) {
             $attach[(int) $a['message_id']][] = $a['original_name'];
         }
         $items = [];

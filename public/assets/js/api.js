@@ -88,11 +88,12 @@ export const api = {
   },
 
   /** Datei-Upload mit Fortschritt (XMLHttpRequest, da fetch keinen Upload-Fortschritt liefert). */
-  upload(path, file, onProgress, field = 'file') {
+  upload(path, file, onProgress, field = 'file', extra = null) {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       const fd = new FormData();
       fd.append(field, file, file.name);
+      for (const [k, v] of Object.entries(extra || {})) fd.append(k, String(v));
       xhr.open('POST', this.url(path));
       xhr.setRequestHeader('X-CSRF-Token', this.csrf);
       xhr.setRequestHeader('Accept', 'application/json');
