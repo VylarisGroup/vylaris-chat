@@ -170,6 +170,10 @@ export function initials(name) {
 export function userAvatar(u, size = 'md', showPresence = false) {
   const name = u?.display_name || u?.name || '?';
   const box = h('span', { class: `relative inline-flex shrink-0 ${SIZES[size]}` });
+  if (u?.bot) {
+    box.append(h('span', { class: `${SIZES[size]} inline-flex items-center justify-center rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300`, 'aria-hidden': 'true' }, icon('bot', size === 'xl' ? 'text-5xl' : size === 'lg' ? 'text-2xl' : 'text-xl')));
+    return box;
+  }
   const inner = u?.has_avatar
     ? h('img', { src: url(`avatar/u/${u.id}?v=${u.avatar_v || ''}`), alt: '', loading: 'lazy', class: `${SIZES[size]} rounded-full object-cover` })
     : h('span', { class: `${SIZES[size]} ${COLORS[hashStr(name) % COLORS.length]} inline-flex items-center justify-center rounded-full font-semibold text-white`, 'aria-hidden': 'true' }, initials(name));
@@ -187,7 +191,13 @@ export function groupAvatar(c, size = 'md') {
 }
 
 /** Avatar einer Unterhaltung (Einzelchat: Gegenüber mit Präsenz, Gruppe: Gruppenbild). */
+export function noteAvatar(size = 'md') {
+  return h('span', { class: `relative inline-flex shrink-0 ${SIZES[size]}` },
+    h('span', { class: `${SIZES[size]} inline-flex items-center justify-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300`, 'aria-hidden': 'true' }, icon('bookmark', size === 'xl' ? 'text-5xl' : size === 'lg' ? 'text-2xl' : 'text-xl')));
+}
+
 export function convAvatar(c, size = 'md', showPresence = true) {
+  if (c.type === 'notes') return noteAvatar(size);
   if (c.type === 'direct') return userAvatar(c.other ? { ...c.other } : { display_name: c.name }, size, showPresence && !!c.other);
   return groupAvatar(c, size);
 }

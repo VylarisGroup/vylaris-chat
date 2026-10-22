@@ -75,7 +75,7 @@ function renderTabs() {
   for (const c of store.conversations.values()) {
     if (c.archived) continue;
     const n = c.muted ? c.unread_mentions : c.unread;
-    if (c.type === 'direct') counts.chats += n; else counts.groups += n;
+    if (c.type === 'group') counts.groups += n; else counts.chats += n;
   }
   for (const [key, label] of [['chats', 'Chats'], ['groups', 'Gruppen'], ['contacts', 'Kontakte']]) {
     const active = store.tab === key;

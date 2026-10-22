@@ -53,6 +53,35 @@ final class Chat
 
     // ----------------------------------------------------------------- Anlegen
 
+    /**
+     * Notizen: ein Chat mit sich selbst für Texte, Links und Dateien. Genau eine Unterhaltung je Person (Typ «notes»), nie für Gäste.
+     * @return int|null Unterhaltungs-ID, null bei Gästen
+     */
+    public static function ensureNotes(int $userId): ?int
+    {
+        static $cache = [];
+        if (array_key_exists($userId, $cache)) {
+            return $cache[$userId];
+        }
+        $key = 'notes:' . $userId;
+        $id = Database::value('SELECT id FROM conversations WHERE direct_key = ?', [$key]);
+        if ($id) {
+            Database::exec("INSERT INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?,?, 'member', ?) ON DUPLICATE KEY UPDATE left_at = NULL", [(int) $id, $userId, now()]);
+            return $cache[$userId] = (int) $id;
+        }
+        $u = User::find($userId);
+        if (!$u || $u['role'] === 'guest' || (int) ($u['is_bot'] ?? 0) === 1) {
+            return $cache[$userId] = null;
+        }
+        $id = (int) Database::transaction(static function () use ($key, $userId): int {
+            Database::exec("INSERT IGNORE INTO conversations (type, direct_key, name, created_by, created_at, updated_at) VALUES ('notes', ?, 'Notizen', ?, ?, ?)", [$key, $userId, now(), now()]);
+            $cid = (int) Database::value('SELECT id FROM conversations WHERE direct_key = ?', [$key]);
+            Database::exec("INSERT INTO conversation_members (conversation_id, user_id, role, joined_at, pinned) VALUES (?,?, 'member', ?, 1) ON DUPLICATE KEY UPDATE left_at = NULL", [$cid, $userId, now()]);
+            return $cid;
+        });
+        return $cache[$userId] = $id;
+    }
+
     public static function directWith(int $userId, int $otherId): int
     {
         if ($userId === $otherId) {
@@ -63,6 +92,9 @@ final class Chat
             throw new HttpException(404, 'Benutzer nicht gefunden.');
         }
         $self = User::find($userId);
+        if (!empty($other['is_bot'])) {
+            Ai::assertMayAdd($self ?? []);
+        }
         if (($self['role'] ?? '') === 'guest' || $other['role'] === 'guest') {
             throw new HttpException(403, 'Mit Gästen sind keine Einzelchats möglich. Gäste nutzen die Gruppen, zu denen sie eingeladen wurden.');
         }
@@ -197,10 +229,13 @@ final class Chat
         }
         $actorRole = (string) (User::find($actorId)['role'] ?? 'member');
         $users = Database::all(
-            'SELECT id, display_name, role FROM users WHERE id IN (' . Database::in($userIds) . ') AND is_active = 1 AND deleted_at IS NULL',
+            'SELECT id, display_name, role, is_bot FROM users WHERE id IN (' . Database::in($userIds) . ') AND is_active = 1 AND deleted_at IS NULL',
             $userIds
         );
         foreach ($users as $cand) {
+            if (!empty($cand['is_bot'])) {
+                Ai::assertMayAdd(User::find($actorId) ?? []);
+            }
             if ($cand['role'] === 'guest' && $actorRole !== 'admin') {
                 throw new HttpException(403, 'Gäste kann nur die Administration zu Gruppen hinzufügen.');
             }
@@ -221,7 +256,11 @@ final class Chat
             }
             Messages::system($conversationId, $actorName . ' hat ' . $u['display_name'] . ' hinzugefügt.');
             Events::push('conversation.added', $conversationId, null, $uid);
-            Notifications::create($uid, 'group_added', $actorId, $conversationId, null, 'Du wurdest zur Gruppe „' . $conv['name'] . '“ hinzugefügt.');
+            if (!empty($u['is_bot'])) {
+                Messages::system($conversationId, 'Die KI antwortet nur, wenn sie mit @' . (string) Database::value('SELECT username FROM users WHERE id = ?', [$uid]) . ' erwähnt wird oder man auf ihre Nachricht antwortet. Dann werden je nach Einstellung auch frühere Nachrichten dieser Gruppe an den KI-Anbieter übermittelt.');
+            } else {
+                Notifications::create($uid, 'group_added', $actorId, $conversationId, null, 'Du wurdest zur Gruppe „' . $conv['name'] . '“ hinzugefügt.');
+            }
             $added++;
         }
         if ($added) {
@@ -324,6 +363,9 @@ final class Chat
     public static function setPrefs(int $conversationId, int $userId, array $prefs): void
     {
         self::requireMember($conversationId, $userId);
+        if ((self::conversation($conversationId)['type'] ?? '') === 'notes') {
+            return; // Notizen sind immer oben und nicht archivierbar
+        }
         $sets = [];
         $params = [];
         foreach (['muted', 'archived', 'pinned'] as $key) {
@@ -349,6 +391,9 @@ final class Chat
      */
     public static function listFor(int $userId, ?array $onlyIds = null, ?bool $archived = null): array
     {
+        if ($onlyIds === null && $archived === null) {
+            self::ensureNotes($userId);
+        }
         $where = 'm.user_id = ? AND m.left_at IS NULL';
         // Platzhalter-Reihenfolge: unread (Absender), mentions (Benutzer), dann WHERE
         $params = [$userId, $userId, $userId];
@@ -364,7 +409,7 @@ final class Chat
             array_push($params, ...$onlyIds);
         }
         $rows = Database::all(
-            "SELECT c.id, c.type, c.name, c.description, c.avatar_file, c.last_message_id, c.last_message_at, c.created_at,
+            "SELECT c.id, c.type, c.name, c.description, c.avatar_file, c.ai_context, c.last_message_id, c.last_message_at, c.created_at,
                     m.role, m.muted, m.archived, m.pinned, m.last_read_message_id,
                     (SELECT COUNT(*) FROM messages x WHERE x.conversation_id = c.id
                         AND x.id > GREATEST(m.last_read_message_id, m.visible_from_message_id)
@@ -413,6 +458,9 @@ final class Chat
             }
         }
 
+        $botId = Ai::botId();
+        $aiConvs = $botId ? array_map('intval', array_column(Database::all('SELECT conversation_id FROM conversation_members WHERE user_id = ? AND left_at IS NULL AND conversation_id IN (' . Database::in($ids) . ')', array_merge([$botId], $ids)), 'conversation_id')) : [];
+
         $out = [];
         foreach ($rows as $r) {
             $id = (int) $r['id'];
@@ -440,12 +488,14 @@ final class Chat
             $out[] = [
                 'id' => $id,
                 'type' => $r['type'],
-                'name' => $r['type'] === 'direct' ? ($other['display_name'] ?? 'Unbekannt') : $r['name'],
+                'name' => $r['type'] === 'direct' ? ($other['display_name'] ?? 'Unbekannt') : ($r['type'] === 'notes' ? 'Notizen' : $r['name']),
                 'description' => $r['description'],
                 'has_avatar' => $r['type'] === 'group' && !empty($r['avatar_file']),
                 'avatar_v' => !empty($r['avatar_file']) ? substr(md5($r['avatar_file']), 0, 8) : null,
                 'other' => $other,
                 'member_count' => (int) $r['member_count'],
+                'ai_context' => $r['ai_context'],
+                'has_ai' => in_array($id, $aiConvs, true),
                 'role' => $r['role'],
                 'muted' => (bool) $r['muted'],
                 'archived' => (bool) $r['archived'],
@@ -517,6 +567,8 @@ final class Chat
             'description' => $conv['description'],
             'created_at' => iso($conv['created_at']),
             'my_role' => $member['role'],
+            'ai_context' => $conv['ai_context'] ?? 'recent',
+            'has_ai' => (bool) array_filter($members, static fn ($m) => !empty($m['bot'])),
             'members' => $members,
             'files' => $files,
             'links' => array_values($links),

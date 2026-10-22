@@ -117,7 +117,7 @@ export function userPicker({ multi = false, exclude = [], onChange, onPick } = {
             userAvatar(u, 'md', true),
             h('span', { class: 'min-w-0 flex-1' },
               h('span', { class: 'block truncate text-sm font-medium' }, u.display_name),
-              h('span', { class: 'block truncate text-xs text-slate-500 dark:text-neutral-400' }, `@${u.username}${u.status_message ? ` · ${u.status_message}` : ''}`)),
+              h('span', { class: 'block truncate text-xs text-slate-500 dark:text-neutral-400' }, u.bot ? `KI-Assistent · @${u.username}` : `@${u.username}${u.status_message ? ` · ${u.status_message}` : ''}`)),
             multi ? icon('check-circle', `pick-mark text-xl text-accent ${selected.has(u.id) ? '' : 'opacity-0'}`) : null)));
       }
     } catch (e) {
@@ -301,9 +301,9 @@ export function profileDialog(u) {
       h('p', { class: 'text-sm text-slate-500 dark:text-neutral-400' }, `@${u.username}`),
       u.status_message ? h('p', { class: 'mt-3 rounded-xl bg-slate-100 px-3 py-2 text-sm dark:bg-neutral-800' }, u.status_message) : null,
       h('dl', { class: 'mt-4 w-full space-y-2 text-left text-sm' },
-        row('E-Mail', u.email), row('Status', presenceLabel(u.presence)),
-        u.presence !== 'online' && u.last_seen_at ? row('Zuletzt aktiv', relativeSeen(u.last_seen_at)) : null,
-        row('Rolle', u.role === 'admin' ? 'Administrator' : 'Mitglied'))),
+        u.bot ? row('Art', 'KI-Assistent (automatische Antworten, können Fehler enthalten)') : row('E-Mail', u.email), u.bot ? null : row('Status', presenceLabel(u.presence)),
+        !u.bot && u.presence !== 'online' && u.last_seen_at ? row('Zuletzt aktiv', relativeSeen(u.last_seen_at)) : null,
+        u.bot ? null : row('Rolle', u.role === 'admin' ? 'Administrator' : 'Mitglied'))),
     footer: u.id === store.me.id ? null : [
       h('button', {
         class: 'btn btn-primary', type: 'button',

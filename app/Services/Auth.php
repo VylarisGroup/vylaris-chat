@@ -57,6 +57,9 @@ final class Auth
         }
 
         $user = $email !== '' ? User::findByEmail($email) : null;
+        if ($user && !empty($user['is_bot'])) {
+            $user = null; // Die KI ist ein Systemkonto ohne Anmeldung
+        }
         if ($user) {
             $valid = password_verify($password, $user['password_hash']);
         } else {

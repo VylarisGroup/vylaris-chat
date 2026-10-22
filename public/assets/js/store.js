@@ -45,8 +45,8 @@ export const store = {
   /** Sortiert: angepinnt zuerst, dann nach letzter Nachricht. */
   sorted({ archived = false, type = null } = {}) {
     return [...this.conversations.values()]
-      .filter((c) => c.archived === archived && (!type || c.type === type))
-      .sort((a, b) => (Number(b.pinned) - Number(a.pinned)) || String(b.last_message_at).localeCompare(String(a.last_message_at)) || b.id - a.id);
+      .filter((c) => c.archived === archived && (!type || c.type === type || (type === 'direct' && c.type === 'notes')))
+      .sort((a, b) => (Number(b.type === 'notes') - Number(a.type === 'notes')) || (Number(b.pinned) - Number(a.pinned)) || String(b.last_message_at).localeCompare(String(a.last_message_at)) || b.id - a.id);
   },
 
   /** Ungelesene Nachrichten (ohne stummgeschaltete und archivierte Unterhaltungen, ausser bei Erwähnungen). */

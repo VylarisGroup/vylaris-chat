@@ -15,6 +15,7 @@ use App\Controllers\Api\MessageController;
 use App\Controllers\Api\MiscController;
 use App\Controllers\Api\MeetingController;
 use App\Controllers\Api\PollController;
+use App\Controllers\AdminAiController;
 use App\Controllers\AdminMeetsController;
 use App\Controllers\AuthController;
 use App\Controllers\SecurityController;
@@ -129,6 +130,7 @@ return static function (Router $r): void {
     $r->add('PATCH', '/api/conversations/{id}/members/{uid}', [ConversationController::class, 'setRole'], $api);
     $r->add('POST', '/api/conversations/{id}/leave', [ConversationController::class, 'leave'], $api);
     $r->add('PATCH', '/api/conversations/{id}/prefs', [ConversationController::class, 'prefs'], $api);
+    $r->add('PUT', '/api/conversations/{id}/ai-context', [ConversationController::class, 'aiContext'], $api);
     $r->add('GET', '/api/conversations/{id}/messages', [ConversationController::class, 'messages'], $api);
     $r->add('POST', '/api/conversations/{id}/messages', [ConversationController::class, 'send'], $api);
     $r->add('POST', '/api/conversations/{id}/read', [ConversationController::class, 'read'], $api);
@@ -153,6 +155,7 @@ return static function (Router $r): void {
     $r->add('DELETE', '/api/messages/{id}', [MessageController::class, 'delete'], $api);
     $r->add('POST', '/api/messages/{id}/reactions', [MessageController::class, 'react'], $api);
     $r->add('POST', '/api/messages/{id}/forward', [MessageController::class, 'forward'], $api);
+    $r->add('POST', '/api/messages/{id}/notes', [MessageController::class, 'saveNote'], $api);
     $r->add('POST', '/api/messages/{id}/report', [MessageController::class, 'report'], $api);
 
     // Administration
@@ -206,6 +209,9 @@ return static function (Router $r): void {
     $r->add('GET', '/admin/meets', [AdminMeetsController::class, 'index'], $admin);
     $r->add('POST', '/admin/meets/save', [AdminMeetsController::class, 'save'], $admin);
     $r->add('POST', '/admin/meets/test', [AdminMeetsController::class, 'test'], $admin);
+    $r->add('GET', '/admin/ai', [AdminAiController::class, 'index'], $admin);
+    $r->add('POST', '/admin/ai/save', [AdminAiController::class, 'save'], $admin);
+    $r->add('POST', '/admin/ai/test', [AdminAiController::class, 'test'], $admin);
     $r->add('GET', '/admin/license', [AdminLicenseController::class, 'index'], $admin);
     $r->add('POST', '/admin/license/save', [AdminLicenseController::class, 'save'], $admin);
     $r->add('POST', '/admin/license/check', [AdminLicenseController::class, 'check'], $admin);

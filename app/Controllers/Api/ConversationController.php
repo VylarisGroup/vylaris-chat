@@ -137,6 +137,14 @@ final class ConversationController extends Controller
         return $this->json(['conversation' => Chat::listFor($uid, [$id])[0] ?? null]);
     }
 
+    public function aiContext(Request $r): Response
+    {
+        $uid = (int) $this->user()['id'];
+        $id = $this->id($r);
+        \App\Services\Ai::setContext($id, $uid, (string) $r->input('level'));
+        return $this->json(['conversation' => Chat::listFor($uid, [$id])[0] ?? null]);
+    }
+
     // ------------------------------------------------------------ Nachrichten
 
     public function messages(Request $r): Response

@@ -34,7 +34,7 @@ function render() {
   const canMod = isGroup && (myRole === 'admin' || myRole === 'moderator');
 
   root.append(h('div', { class: 'flex h-16 shrink-0 items-center justify-between border-b border-slate-200 px-4 dark:border-neutral-800' },
-    h('h2', { class: 'text-sm font-semibold' }, isGroup ? 'Gruppeninfo' : 'Kontaktinfo'),
+    h('h2', { class: 'text-sm font-semibold' }, isGroup ? 'Gruppeninfo' : c.type === 'notes' ? 'Notizen' : 'Kontaktinfo'),
     h('button', { class: 'btn-icon', 'aria-label': 'Info-Bereich schliessen', onclick: () => { store.detailsOpen = false; store.emit('details-toggle'); store.emit('details-changed'); } }, icon('x'))));
 
   const body = h('div', { class: 'scroll-thin min-h-0 flex-1 overflow-y-auto' });
@@ -47,16 +47,38 @@ function render() {
     h('h3', { class: 'mt-3 break-words text-lg font-semibold leading-tight' }, c.name),
     isGroup
       ? h('p', { class: 'mt-1 text-sm text-slate-500 dark:text-neutral-400' }, `${c.member_count} Mitglieder`)
-      : h('p', { class: 'mt-1 text-sm text-slate-500 dark:text-neutral-400' }, other ? (other.presence === 'online' ? 'Online' : other.last_seen_at ? `Zuletzt aktiv ${relativeSeen(other.last_seen_at)}` : presenceLabel(other.presence)) : ''),
+      : c.type === 'notes' ? h('p', { class: 'mt-1 text-sm text-slate-500 dark:text-neutral-400' }, 'Nur für dich sichtbar. Texte, Links und Dateien, auf allen deinen Geräten.')
+      : h('p', { class: 'mt-1 text-sm text-slate-500 dark:text-neutral-400' }, other?.bot ? 'KI-Assistent' : other ? (other.presence === 'online' ? 'Online' : other.last_seen_at ? `Zuletzt aktiv ${relativeSeen(other.last_seen_at)}` : presenceLabel(other.presence)) : ''),
     isGroup && (d?.description || c.description) ? h('p', { class: 'mt-3 whitespace-pre-wrap break-words text-sm text-slate-600 dark:text-neutral-300' }, d?.description ?? c.description) : null,
     !isGroup && other?.status_message ? h('p', { class: 'mt-3 rounded-xl bg-slate-100 px-3 py-2 text-sm dark:bg-neutral-800' }, other.status_message) : null,
     h('div', { class: 'mt-4 flex flex-wrap justify-center gap-2' },
       h('button', { class: 'btn btn-secondary btn-sm', onclick: () => store.emit('search-in', c.id) }, icon('search', 'text-base'), 'Suchen'),
-      h('button', { class: 'btn btn-secondary btn-sm', 'aria-pressed': String(c.muted), onclick: () => setPref(c, { muted: !c.muted }) }, icon(c.muted ? 'bell' : 'bell-off', 'text-base'), c.muted ? 'Ton an' : 'Stumm'),
-      h('button', { class: 'btn btn-secondary btn-sm', 'aria-pressed': String(c.pinned), onclick: () => setPref(c, { pinned: !c.pinned }) }, icon('pin', 'text-base'), c.pinned ? 'Losgelöst' : 'Anpinnen'),
-      h('button', { class: 'btn btn-secondary btn-sm', onclick: () => setPref(c, { archived: !c.archived }) }, icon('archive', 'text-base'), c.archived ? 'Wiederherstellen' : 'Archivieren'),
+      c.type === 'notes' ? null : h('button', { class: 'btn btn-secondary btn-sm', 'aria-pressed': String(c.muted), onclick: () => setPref(c, { muted: !c.muted }) }, icon(c.muted ? 'bell' : 'bell-off', 'text-base'), c.muted ? 'Ton an' : 'Stumm'),
+      c.type === 'notes' ? null : h('button', { class: 'btn btn-secondary btn-sm', 'aria-pressed': String(c.pinned), onclick: () => setPref(c, { pinned: !c.pinned }) }, icon('pin', 'text-base'), c.pinned ? 'Losgelöst' : 'Anpinnen'),
+      c.type === 'notes' ? null : h('button', { class: 'btn btn-secondary btn-sm', onclick: () => setPref(c, { archived: !c.archived }) }, icon('archive', 'text-base'), c.archived ? 'Wiederherstellen' : 'Archivieren'),
       canMod ? h('button', { class: 'btn btn-secondary btn-sm', onclick: () => editGroupDialog(c, d) }, icon('edit', 'text-base'), 'Bearbeiten') : null),
     !isGroup && other ? h('button', { class: 'mt-3 text-sm font-medium text-accent hover:underline', onclick: () => profileDialog(other) }, 'Profil anzeigen') : null));
+
+  // KI-Kontext (nur wenn die KI in diesem Chat ist)
+  if (c.has_ai && c.type !== 'notes') {
+    const may = !isGroup || canMod;
+    const levels = [['request', 'Nur die Anfrage'], ['recent', 'Letzte ca. 20 Nachrichten'], ['full', 'Ganzer Verlauf']];
+    const sel = h('select', { class: 'input mt-1', id: 'ai-ctx', disabled: may ? null : '', onchange: async (e) => {
+      try {
+        const res = await api.put(`/api/conversations/${c.id}/ai-context`, { level: e.target.value });
+        if (res.conversation) store.upsertConversation(res.conversation);
+        store.emit('conversations');
+        toast('KI-Kontext gespeichert.', 'success', 2000);
+      } catch (err) { toast(err.message, 'error'); e.target.value = c.ai_context; }
+    } }, levels.map(([v, l]) => h('option', { value: v, selected: c.ai_context === v ? '' : null }, l)));
+    if (!may) sel.disabled = true;
+    body.append(h('div', { class: 'mx-4 mb-3 rounded-xl border border-violet-200 bg-violet-50 p-3 text-sm dark:border-violet-900/50 dark:bg-violet-950/30' },
+      h('label', { class: 'flex items-center gap-1.5 font-semibold text-violet-800 dark:text-violet-300', for: 'ai-ctx' }, icon('bot', 'text-lg'), 'Was die KI mitliest'),
+      sel,
+      h('p', { class: 'mt-1.5 text-xs text-slate-600 dark:text-neutral-400' }, isGroup
+        ? 'Die KI antwortet nur auf @Erwähnung oder wenn du auf ihre Nachricht antwortest. Das hier Gewählte wird dann an den KI-Anbieter übermittelt. Ändern darf die Moderation.'
+        : 'Das hier Gewählte wird bei jeder Frage an den KI-Anbieter übermittelt. Je weniger, desto weniger Daten verlassen den Messenger.')));
+  }
 
   // Tabs
   const tabs = isGroup ? [['members', 'Mitglieder'], ['files', 'Dateien'], ['links', 'Links']] : [['files', 'Dateien'], ['links', 'Links']];

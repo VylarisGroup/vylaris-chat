@@ -47,7 +47,7 @@ with sync_playwright() as p:
     br = p.chromium.launch(executable_path='/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args=['--headless=new', '--no-sandbox'])
     ctx = br.new_context(viewport={'width': 390, 'height': 780}, has_touch=True, is_mobile=True)
     a = login(ctx, 'anna@muster.ch', 'Sehr-sicher-2026!')
-    a.evaluate("""() => { const el = document.querySelector('#conversation-list [data-cid]'); const r = el.getBoundingClientRect();
+    a.evaluate("""() => { const el = [...document.querySelectorAll('#conversation-list [data-cid]')].find((x) => !/Notizen/.test(x.innerText)); const r = el.getBoundingClientRect();
       const t = new Touch({identifier: 1, target: el, clientX: r.x + 40, clientY: r.y + 20});
       el.dispatchEvent(new TouchEvent('touchstart', {touches: [t], bubbles: true, cancelable: true})); }""")
     a.wait_for_timeout(800)

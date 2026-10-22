@@ -95,7 +95,7 @@ final class Messages
                 $senderIds
             ) as $u) {
                 $v = User::publicView($u);
-                $senders[$v['id']] = ['id' => $v['id'], 'display_name' => $v['display_name'], 'username' => $v['username'], 'has_avatar' => $v['has_avatar'], 'avatar_v' => $v['avatar_v']];
+                $senders[$v['id']] = ['id' => $v['id'], 'display_name' => $v['display_name'], 'username' => $v['username'], 'has_avatar' => $v['has_avatar'], 'avatar_v' => $v['avatar_v'], 'bot' => $v['bot']];
             }
         }
 
@@ -396,6 +396,7 @@ final class Messages
             }
             throw $e;
         }
+        Ai::afterSend($row, $user);
         return ['message' => self::hydrate([$row], $uid)[0], 'duplicate' => false];
     }
 

@@ -313,7 +313,7 @@ final class License
 
     public static function activeUsers(): int
     {
-        return (int) Database::value('SELECT COUNT(*) FROM users WHERE is_active = 1 AND deleted_at IS NULL');
+        return (int) Database::value('SELECT COUNT(*) FROM users WHERE is_active = 1 AND deleted_at IS NULL AND is_bot = 0');
     }
 
     public static function seatsUsed(): int
@@ -391,7 +391,7 @@ final class License
         if (self::status()['state'] !== 'ok') {
             return $out;
         }
-        $missing = Database::all('SELECT u.id FROM users u LEFT JOIN license_seats s ON s.user_id = u.id WHERE u.is_active = 1 AND u.deleted_at IS NULL AND s.user_id IS NULL ORDER BY u.id ASC LIMIT 200');
+        $missing = Database::all('SELECT u.id FROM users u LEFT JOIN license_seats s ON s.user_id = u.id WHERE u.is_active = 1 AND u.deleted_at IS NULL AND u.is_bot = 0 AND s.user_id IS NULL ORDER BY u.id ASC LIMIT 200');
         foreach ($missing as $i => $row) {
             $err = self::claimSeat((int) $row['id']);
             if ($err !== null) {
@@ -459,7 +459,7 @@ final class License
             [['DELETE'], '#^/api/conversations/\d+/avatar$#', 'groups', true],
             [['POST'], '#^/api/conversations/\d+/typing$#', 'messaging', true],
             [['PATCH'], '#^/api/messages/\d+$#', 'messaging', true],
-            [['POST'], '#^/api/messages/\d+/(reactions|forward)$#', 'messaging', true],
+            [['POST'], '#^/api/messages/\d+/(reactions|forward|notes)$#', 'messaging', true],
             [['POST'], '#^/api/push/subscribe$#', 'push', false],
             [['POST'], '#^/security/2fa$#', '2fa', false],
             [['POST'], '#^/admin/users/\d+/export$#', 'export', false],

@@ -68,9 +68,9 @@ final class AdminController extends Controller
     {
         $day = gmdate('Y-m-d H:i:s', time() - 86400);
         $stats = [
-            'users_active' => (int) Database::value('SELECT COUNT(*) FROM users WHERE is_active = 1 AND deleted_at IS NULL'),
-            'users_inactive' => (int) Database::value('SELECT COUNT(*) FROM users WHERE is_active = 0 AND deleted_at IS NULL'),
-            'users_unverified' => (int) Database::value('SELECT COUNT(*) FROM users WHERE email_verified_at IS NULL AND deleted_at IS NULL'),
+            'users_active' => (int) Database::value('SELECT COUNT(*) FROM users WHERE is_active = 1 AND deleted_at IS NULL AND is_bot = 0'),
+            'users_inactive' => (int) Database::value('SELECT COUNT(*) FROM users WHERE is_active = 0 AND deleted_at IS NULL AND is_bot = 0'),
+            'users_unverified' => (int) Database::value('SELECT COUNT(*) FROM users WHERE email_verified_at IS NULL AND deleted_at IS NULL AND is_bot = 0'),
             'admins' => $this->adminCount(),
             'online' => (int) Database::value("SELECT COUNT(*) FROM users WHERE last_seen_at > ? AND presence_pref <> 'invisible' AND deleted_at IS NULL", [gmdate('Y-m-d H:i:s', time() - User::ONLINE_WINDOW)]),
             'groups' => (int) Database::value("SELECT COUNT(*) FROM conversations WHERE type = 'group'"),
@@ -144,7 +144,7 @@ final class AdminController extends Controller
         $q = trim($r->str('q', '', 80));
         $status = $r->str('status', 'all', 20);
         $page = max(1, (int) $r->query('page', 1));
-        $where = 'u.deleted_at IS NULL';
+        $where = 'u.deleted_at IS NULL AND u.is_bot = 0';
         $params = [];
         if ($q !== '') {
             $like = '%' . User::escapeLike($q) . '%';

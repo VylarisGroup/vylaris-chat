@@ -13,6 +13,7 @@ export const isGuest = () => store.me?.role === 'guest';
 /** Darf die Person in der aktiven Unterhaltung ein Meeting starten? (Server prüft ebenfalls.) */
 export function canStartMeeting(conv) {
   if (!meetsEnabled() || !conv || isGuest()) return false;
+  if (conv.type === 'direct' && conv.other?.bot) return false;
   return conv.type === 'direct' || ['admin', 'moderator'].includes(conv.role);
 }
 

@@ -103,6 +103,7 @@ final class User
             'display_name' => $u['display_name'],
             'email' => $u['email'],
             'status_message' => $u['status_message'],
+            'bot' => !empty($u['is_bot']),
             'has_avatar' => !empty($u['avatar_file']),
             'avatar_v' => !empty($u['avatar_file']) ? substr(md5($u['avatar_file']), 0, 8) : null,
             'presence' => self::presence($u),
@@ -114,13 +115,17 @@ final class User
     }
 
     /** Selects für publicView. */
-    public const PUBLIC_COLUMNS = 'u.id, u.username, u.display_name, u.email, u.status_message, u.avatar_file, u.presence_pref, u.last_seen_at, u.last_active_at, u.is_active, u.role, COALESCE(s.show_last_seen, 1) AS show_last_seen';
+    public const PUBLIC_COLUMNS = 'u.id, u.username, u.display_name, u.email, u.status_message, u.avatar_file, u.presence_pref, u.last_seen_at, u.last_active_at, u.is_active, u.role, u.is_bot, COALESCE(s.show_last_seen, 1) AS show_last_seen';
 
     public static function directory(string $q, int $limit = 30, ?int $excludeId = null): array
     {
         $params = [];
         $guestViewer = false;
         $where = 'u.deleted_at IS NULL AND u.is_active = 1 AND u.processing_restricted_at IS NULL';
+        $viewer = $excludeId !== null ? self::find($excludeId) : null;
+        if (!$viewer || !\App\Services\Ai::canUse($viewer)) {
+            $where .= ' AND u.is_bot = 0';
+        }
         if ($excludeId !== null) {
             $where .= ' AND u.id <> ?';
             $params[] = $excludeId;

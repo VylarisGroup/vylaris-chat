@@ -37,6 +37,18 @@ final class MessageController extends Controller
         return $this->json(['forwarded' => $ids], 201);
     }
 
+    /** «In Notizen speichern»: Kopie der Nachricht (inkl. Anhänge) im eigenen Notizen-Chat. */
+    public function saveNote(Request $r): Response
+    {
+        $user = $this->user();
+        $notes = \App\Services\Chat::ensureNotes((int) $user['id']);
+        if ($notes === null) {
+            throw new \App\Core\HttpException(403, 'Notizen sind für dieses Konto nicht verfügbar.');
+        }
+        $ids = Messages::forward($user, $this->id($r), [$notes]);
+        return $this->json(['conversation_id' => $notes, 'saved' => $ids], 201);
+    }
+
     public function report(Request $r): Response
     {
         Messages::report($this->user(), $this->id($r), $r->str('reason', '', 500));

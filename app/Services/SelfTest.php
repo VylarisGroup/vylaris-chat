@@ -55,6 +55,7 @@ final class SelfTest
         self::group('Zwei-Faktor, SSO, Push, Hintergrundaufträge (Testdaten, wird zurückgerollt)', self::advancedLogic(), true);
         self::group('Zusammenarbeit: Threads, Umfragen, Termine, Entwürfe, Gäste (Testdaten, wird zurückgerollt)', self::collaboration(), true);
         self::group('Videokonferenzen (Testdaten, wird zurückgerollt)', self::meetings(), true);
+        self::group('Notizen und KI-Assistent (Testdaten, wird zurückgerollt)', self::assistant(), true);
         self::group('Backup, Betrieb und Prüfpaket', self::operations());
         self::group('Lizenz', self::licensing());
         self::group('Aktualisierung', self::updating());
@@ -703,6 +704,96 @@ final class SelfTest
                 self::eq(204, Meets::handleWebhook($other, $ts, $sig($ts, $other)), 'Fremder Raum wird ignoriert');
                 $view = Meets::views([$row], (int) $b['id']);
                 self::ok(!reset($view)['active'], 'Ansicht zeigt beendetes Meeting als aktiv');
+            },
+        ];
+    }
+
+    private static function assistant(): array
+    {
+        $keys = ['ai_enabled', 'ai_endpoint', 'ai_model', 'ai_access', 'ai_allowed_users', 'ai_max_context_tokens', 'ai_max_output_tokens', 'ai_system_prompt'];
+        $saved = [];
+        foreach ($keys as $k) {
+            $saved[$k] = Settings::get($k);
+        }
+        $restore = static function () use ($saved): void {
+            foreach ($saved as $k => $v) {
+                Settings::set($k, $v);
+            }
+        };
+        return [
+            'Notizen: genau ein privater Chat pro Person, nicht für Gäste' => static function () {
+                $a = self::newUser('NA');
+                $id = Chat::ensureNotes((int) $a['id']);
+                self::ok($id !== null && $id === Chat::ensureNotes((int) $a['id']), 'Notizen-Chat nicht stabil');
+                self::eq(1, (int) Database::value("SELECT COUNT(*) FROM conversation_members WHERE conversation_id = ?", [$id]), 'Mitglieder der Notizen');
+                self::eq('notes', (string) Database::value('SELECT type FROM conversations WHERE id = ?', [$id]), 'Typ');
+                $g = self::newUser('NG', 'guest');
+                self::ok(Chat::ensureNotes((int) $g['id']) === null, 'Gäste haben keine Notizen');
+            },
+            'KI: Endpunkt-Adresse und Nutzungsrecht' => static function () use ($restore) {
+                try {
+                    Settings::set('ai_endpoint', 'https://api.example.org/v1/');
+                    self::eq('https://api.example.org/v1/chat/completions', Ai::url(), 'Basis-Adresse');
+                    Settings::set('ai_endpoint', 'https://api.example.org/v1/chat/completions');
+                    self::eq('https://api.example.org/v1/chat/completions', Ai::url(), 'Vollständige Adresse');
+                    Settings::set('ai_endpoint', 'ftp://x');
+                    self::ok(Ai::url() === null, 'Ungültiges Schema');
+                    Settings::set('ai_endpoint', 'https://api.example.org/v1');
+                    Settings::set('ai_model', 'm');
+                    Settings::set('ai_enabled', '1');
+                    $m = ['role' => 'member', 'username' => 'bea'];
+                    $adm = ['role' => 'admin', 'username' => 'chef'];
+                    $guest = ['role' => 'guest', 'username' => 'gast'];
+                    Settings::set('ai_access', 'all');
+                    self::ok(Ai::canUse($m) && Ai::canUse($adm) && !Ai::canUse($guest), 'Zugriff «alle»');
+                    Settings::set('ai_access', 'admins');
+                    self::ok(!Ai::canUse($m) && Ai::canUse($adm), 'Zugriff «Admins»');
+                    Settings::set('ai_access', 'list');
+                    Settings::set('ai_allowed_users', '@Bea, carl');
+                    self::ok(Ai::canUse($m) && Ai::canUse($adm) && !Ai::canUse(['role' => 'member', 'username' => 'dora']), 'Zugriff «Liste»');
+                    Settings::set('ai_enabled', '0');
+                    self::ok(!Ai::canUse($adm), 'Deaktiviert');
+                    Settings::set('ai_max_context_tokens', '999999');
+                    self::eq(Ai::HARD_CONTEXT_LIMIT, Ai::maxContextTokens(), 'Hartes Limit 90 000');
+                } finally {
+                    $restore();
+                }
+            },
+            'KI: Kontextaufbau (Stufen, Token-Limit, Rollen, Beitrittszeitpunkt)' => static function () use ($restore) {
+                try {
+                    Settings::set('ai_endpoint', 'https://api.example.org/v1');
+                    Settings::set('ai_model', 'm');
+                    Settings::set('ai_enabled', '1');
+                    Settings::set('ai_access', 'all');
+                    Settings::set('ai_system_prompt', 'Prompt');
+                    Settings::set('ai_max_context_tokens', '30000');
+                    $botId = Ai::ensureBot();
+                    $bot = User::find($botId);
+                    $a = self::newUser('KA');
+                    $cid = Chat::directWith((int) $a['id'], $botId);
+                    Messages::create($a, $cid, 'Erste Frage', null, null, false);
+                    Messages::create($bot, $cid, 'Erste Antwort', null, null, false);
+                    $del = Messages::create($a, $cid, 'Gelöscht', null, null, false);
+                    Database::exec('UPDATE messages SET deleted_at = ? WHERE id = ?', [now(), (int) $del['id']]);
+                    $trig = Messages::create($a, $cid, 'Zweite Frage', null, null, false);
+                    $conv = Chat::conversation($cid);
+                    $conv['ai_context'] = 'recent';
+                    $msgs = Ai::buildMessages($conv, $trig, $botId);
+                    self::eq(['system', 'user', 'assistant', 'user'], array_column($msgs, 'role'), 'Rollen (recent)');
+                    self::ok(!str_contains(json_encode($msgs), 'Gelöscht'), 'Gelöschte Nachricht im Kontext');
+                    $conv['ai_context'] = 'request';
+                    self::eq(['system', 'user'], array_column(Ai::buildMessages($conv, $trig, $botId), 'role'), 'Stufe request');
+                    $conv['ai_context'] = 'full';
+                    self::eq(4, count(Ai::buildMessages($conv, $trig, $botId)), 'Stufe full');
+                    Settings::set('ai_max_context_tokens', '500');
+                    Settings::set('ai_max_output_tokens', '64');
+                    $big = Messages::create($a, $cid, str_repeat('x', 3000), null, null, false);
+                    $cut = Ai::buildMessages($conv, $big, $botId);
+                    self::eq(2, count($cut), 'Token-Limit kürzt Verlauf, auslösende Nachricht bleibt');
+                    self::ok(mb_strlen($cut[1]['content']) <= 436 * 3, 'Auslösende Nachricht wird gekürzt');
+                } finally {
+                    $restore();
+                }
             },
         ];
     }

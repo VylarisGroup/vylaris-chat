@@ -29,6 +29,7 @@ $navGroups = [
         ['backup', 'admin/backup', 'Backup', 'archive'],
         ['operations', 'admin/operations', 'Betrieb', 'pulse'],
         ['meets', 'admin/meets', 'Videokonferenzen', 'video'],
+        ['ai', 'admin/ai', 'KI-Assistent', 'bot'],
         ['tests', 'admin/tests', 'Systemtest', 'check-shield'],
     ]],
     ['Software', 'package', [

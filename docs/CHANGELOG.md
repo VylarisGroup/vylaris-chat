@@ -1,5 +1,28 @@
 # Änderungen
 
+## 1.16.0 – Notizen-Chat und KI-Assistent
+
+### Notizen (Chat mit dir selbst)
+
+* **Eigener Chat «Notizen»:** Jede Person (ausser Gäste) hat oben in der Liste einen privaten Chat, den nur sie sieht. Er dient als Ablage für Texte, Links (mit Vorschau) und Dateien und ist auf allen Geräten gleich. Er lässt sich nicht stummschalten, anpinnen oder archivieren und kennt keine Umfragen, Termine oder Meetings.
+* **In Notizen speichern:** Im Menü jeder Nachricht («Mehr») speichert «In Notizen speichern» eine Kopie samt Anhängen in die Notizen.
+
+### KI-Assistent (OpenAI-kompatibel)
+
+* **Anbindung:** Neue Administrationsseite *System → KI-Assistent*: Endpunkt (Basis-Adresse, der Messenger ruft `…/chat/completions` auf), API-Schlüssel (verschlüsselt gespeichert), Modell, Anzeigename, Systemprompt, Temperatur, Antwortlänge, Zeitlimit, Kontext-Limit (höchstens 90 000 Tokens) und Verbindungstest. Funktioniert mit OpenAI und kompatiblen Diensten oder lokalen Servern. Modelle, die `max_completion_tokens` verlangen oder keine eigene Temperatur erlauben, werden automatisch erkannt.
+* **Genau eine KI pro Installation.** Sie erscheint wie eine Person (@ki) im Verzeichnis, ist ein Systemkonto ohne Anmeldung und zählt nicht als Lizenzplatz.
+* **Einzelchat und Gruppen:** Jeder (ausser Gästen) kann einen Chat mit der KI starten. Zu Gruppen fügt die Moderation sie hinzu; alle Mitglieder sehen dazu eine Systemmeldung. In Gruppen antwortet die KI nur auf @Erwähnung oder wenn auf eine ihrer Nachrichten geantwortet wird, im Einzelchat auf jede Nachricht.
+* **Kontext pro Chat:** In den Details wählt man, was mitgeschickt wird: nur die Anfrage, die letzten ca. 20 Nachrichten oder der ganze Verlauf seit dem Beitritt der KI, immer begrenzt durch das Token-Limit. In Gruppen ändert das die Moderation. Nachrichten vor dem Beitritt der KI sieht sie nie.
+* **Antwort:** Die Antwort kommt fertig als eine Nachricht, solange läuft «schreibt …». Jede Nachricht der KI trägt das Label «KI-Antwort». Fehler erscheinen als Systemmeldung.
+* **Zugriff:** Die Administration kann die Nutzung auf Administratoren oder eine Liste von Benutzernamen beschränken und ein Stundenlimit pro Person setzen.
+* **Datenschutz:** Pro Anfrage gehen der Nachrichtentext und je nach Stufe früherer Verlauf (mit Anzeigenamen, ohne E-Mail-Adressen, ohne Dateiinhalte) an den eingetragenen Anbieter. Die Datenschutzerklärung nennt ihn automatisch, solange die KI aktiv ist.
+* Standardmässig aus. Datenbank-Migration 010 (automatisch beim Update).
+
+### Behoben
+
+* In der Chat-Kopfzeile erschien das Wort «null», wenn kein Meeting-Knopf angezeigt wird.
+* Umfrage- und Termin-Knöpfe liessen sich in manchen Fällen nicht ausblenden.
+
 ## 1.15.0 – Videokonferenzen und PWA-Feinschliff
 
 Diese Version fasst die übersprungenen Versionen 1.10.0 bis 1.14.0 zusammen.

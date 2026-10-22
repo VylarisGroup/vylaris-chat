@@ -40,7 +40,7 @@ final class Notifications
              FROM conversation_members cm
              JOIN users u ON u.id = cm.user_id
              LEFT JOIN user_settings s ON s.user_id = u.id
-             WHERE cm.conversation_id = ? AND cm.left_at IS NULL AND cm.user_id <> ? AND u.is_active = 1',
+             WHERE cm.conversation_id = ? AND cm.left_at IS NULL AND cm.user_id <> ? AND u.is_active = 1 AND u.is_bot = 0',
             [$convId, (int) $sender['id']]
         );
         $emailEnabled = Settings::bool('email_notifications_enabled') && Mail::configured();
@@ -143,7 +143,7 @@ final class Notifications
         $members = Database::all(
             'SELECT cm.user_id, cm.muted, u.processing_restricted_at, u.last_visible_at
              FROM conversation_members cm JOIN users u ON u.id = cm.user_id
-             WHERE cm.conversation_id = ? AND cm.left_at IS NULL AND u.is_active = 1 AND cm.user_id IN (' . Database::in($wanted) . ')',
+             WHERE cm.conversation_id = ? AND cm.left_at IS NULL AND u.is_active = 1 AND u.is_bot = 0 AND cm.user_id IN (' . Database::in($wanted) . ')',
             array_merge([$convId], $wanted)
         );
         $senderName = (string) $sender['display_name'];

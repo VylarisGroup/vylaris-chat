@@ -110,10 +110,12 @@ function renderHeader() {
   clear(el.header);
   if (!c) return;
   let sub = '';
-  if (c.type === 'direct') {
+  if (c.type === 'notes') {
+    sub = 'Nur für dich sichtbar · Notizen, Links und Dateien';
+  } else if (c.type === 'direct') {
     const o = c.other;
-    sub = o ? (o.presence !== 'offline' ? presenceLabel(o.presence) : (o.last_seen_at ? `Zuletzt online ${relativeSeen(o.last_seen_at)}` : 'Offline')) : '';
-    if (o?.status_message) sub = `${sub} · ${o.status_message}`;
+    sub = o?.bot ? 'KI-Assistent · Antworten können Fehler enthalten' : o ? (o.presence !== 'offline' ? presenceLabel(o.presence) : (o.last_seen_at ? `Zuletzt online ${relativeSeen(o.last_seen_at)}` : 'Offline')) : '';
+    if (o?.status_message && !o?.bot) sub = `${sub} · ${o.status_message}`;
   } else {
     sub = `${c.member_count} Mitglied${c.member_count === 1 ? '' : 'er'}`;
   }
@@ -124,10 +126,17 @@ function renderHeader() {
       h('span', { class: 'min-w-0' },
         h('span', { class: 'flex items-center gap-1.5 truncate text-sm font-semibold' }, h('span', { class: 'truncate' }, c.name), c.muted ? icon('bell-off', 'text-sm text-slate-400') : null, c.pinned ? icon('pin', 'text-sm text-slate-400') : null),
         h('span', { class: 'block truncate text-xs text-slate-500 dark:text-neutral-400' }, sub))),
-    canStartMeeting(c) ? h('button', { class: 'btn-icon', 'aria-label': 'Videomeeting starten', title: 'Videomeeting starten', onclick: () => startMeeting(c.id) }, icon('video')) : null,
+    canStartMeeting(c) ? h('button', { class: 'btn-icon', 'aria-label': 'Videomeeting starten', title: 'Videomeeting starten', onclick: () => startMeeting(c.id) }, icon('video')) : '',
     h('button', { class: 'btn-icon', 'aria-label': 'In dieser Unterhaltung suchen', title: 'In dieser Unterhaltung suchen', onclick: () => store.emit('search-in', c.id) }, icon('search')),
     h('button', { class: `btn-icon ${store.detailsOpen ? 'bg-slate-100 text-accent dark:bg-neutral-800' : ''}`, 'aria-label': 'Details', 'aria-pressed': String(store.detailsOpen), title: 'Details ein-/ausblenden', onclick: toggleDetails }, icon('info-circle')),
     h('button', { class: 'btn-icon', 'aria-label': 'Weitere Aktionen', 'aria-haspopup': 'menu', onclick: (e) => convMenu(c, e.currentTarget) }, icon('dots-vertical-rounded')));
+}
+
+async function saveToNotes(m) {
+  try {
+    await api.post(`/api/messages/${m.id}/notes`, {});
+    toast('In Notizen gespeichert.');
+  } catch (e) { toast(e.message, 'error'); }
 }
 
 function toggleDetails() {
@@ -138,6 +147,7 @@ function toggleDetails() {
 }
 
 export function convMenu(c, anchor) {
+  if (c.type === 'notes') return;
   menu(anchor, [
     { label: c.pinned ? 'Nicht mehr anpinnen' : 'Anpinnen', icon: 'pin', onClick: () => setPref(c, { pinned: !c.pinned }) },
     { label: c.muted ? 'Stummschaltung aufheben' : 'Stummschalten', icon: c.muted ? 'bell' : 'bell-off', onClick: () => setPref(c, { muted: !c.muted }) },
@@ -194,7 +204,7 @@ export async function openConversation(id, { around = null, focus = true } = {})
   el.chat.classList.replace('hidden', 'flex');
   store.typing = { conversation_id: id, names: [] };
   renderTyping();
-  if (el.pollTool) { el.pollTool.hidden = !canCreate(); el.eventTool.hidden = !canCreate(); }
+  if (el.pollTool) { const off = !canCreate() || store.active?.type === 'notes'; for (const t of [el.pollTool, el.eventTool]) { t.hidden = off; t.style.display = off ? 'none' : ''; } }
   store.emit('active');
   store.emit('mobile-view');
   renderHeader();
@@ -476,6 +486,9 @@ function messageNode(m, { continues, last, group }) {
     if (group && !own && showHead) {
       body.append(h('p', { class: 'mb-0.5 text-xs font-semibold text-accent' }, m.sender?.display_name || 'Unbekannt'));
     }
+    if (m.sender?.bot) {
+      body.append(h('p', { class: 'mb-1 inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-700 dark:bg-violet-900/40 dark:text-violet-300', title: 'Diese Nachricht wurde von einer KI erzeugt und kann Fehler enthalten.' }, icon('bot', 'text-sm'), 'KI-Antwort'));
+    }
     if (m.kind === 'poll') body.append(pollNode(m));
     else if (m.kind === 'event') body.append(eventNode(m));
     else if (m.kind === 'meeting') body.append(meetingNode(m));
@@ -590,6 +603,7 @@ function messageMenu(m, anchor) {
     { label: 'Reagieren', icon: 'smile', onClick: () => reactionPicker(m, anchor instanceof Element ? anchor : el.list) },
     m.body && m.kind === 'text' ? { label: 'Text kopieren', icon: 'copy', onClick: async () => toast((await copyText(m.body)) ? 'In die Zwischenablage kopiert.' : 'Kopieren nicht möglich.', 'success', 2000) } : null,
     m.kind === 'text' ? { label: 'Weiterleiten', icon: 'share', onClick: () => forwardDialog(m) } : null,
+    m.kind === 'text' && store.active?.type !== 'notes' && store.me?.role !== 'guest' ? { label: 'In Notizen speichern', icon: 'bookmark', onClick: () => saveToNotes(m) } : null,
     canEdit(m) && m.body ? { divider: true } : null,
     canEdit(m) && m.body ? { label: 'Bearbeiten', icon: 'edit', onClick: () => startEdit(m) } : null,
     !own ? { label: 'Melden', icon: 'flag', onClick: () => reportDialog(m) } : null,
