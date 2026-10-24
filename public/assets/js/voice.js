@@ -187,9 +187,9 @@ export function voiceNode(a, own) {
       if (au.paused) {
         if (playing && playing.audio !== au) playing.audio.pause();
         au.playbackRate = speed;
-        await au.play();
-        playing = { audio: au };
         speedBtn.classList.remove('hidden');
+        playing = { audio: au };
+        await au.play();
       } else au.pause();
     } catch (e) { reset(); toast(e.message || 'Wiedergabe nicht möglich.', 'error'); }
   };

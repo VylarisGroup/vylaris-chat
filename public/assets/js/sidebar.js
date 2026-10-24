@@ -1,5 +1,6 @@
 // Seitenleiste: Unterhaltungsliste, Tabs, Suche mit Filtern, Kontakte, Profilbereich.
 
+import { mountMark } from './mark.js';
 import { api } from './api.js';
 import { store } from './store.js';
 import { h, icon, clear, userAvatar, convAvatar, longPress, listTime, url, debounce, humanSize, state } from './util.js';
@@ -37,6 +38,7 @@ export function initSidebar(container) {
   el.footer = h('div', { class: 'flex shrink-0 items-center gap-2 border-t border-slate-200 p-3 dark:border-neutral-800' });
 
   root.append(el.header, el.searchBox, el.filters, el.tabs, el.list, el.footer);
+  mountMark(root);
   renderLogo();
   renderTabs();
   renderFooter();

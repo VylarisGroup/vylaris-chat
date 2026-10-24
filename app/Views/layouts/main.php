@@ -59,7 +59,7 @@ $wizFor = \App\Services\Wizards::FOR_SECTION[$section ?? ''] ?? null;
 <body class="min-h-screen bg-slate-100 text-slate-800 antialiased dark:bg-neutral-950 dark:text-neutral-100">
   <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-lg focus:bg-white focus:px-3 focus:py-2">Zum Inhalt springen</a>
   <div class="mx-auto flex min-h-screen max-w-[1400px] flex-col lg:flex-row">
-    <aside class="shrink-0 border-b border-slate-200 bg-white lg:min-h-screen lg:w-64 lg:border-b-0 lg:border-r dark:border-neutral-800 dark:bg-neutral-900">
+    <aside class="shrink-0 lg:flex lg:flex-col border-b border-slate-200 bg-white lg:min-h-screen lg:w-64 lg:border-b-0 lg:border-r dark:border-neutral-800 dark:bg-neutral-900">
       <div class="flex items-center gap-2.5 px-5 py-4">
         <?php if (Settings::get('logo_file') !== ''): ?>
           <img src="<?= e(url('branding/logo')) ?>" alt="" class="h-8 w-8 rounded-lg object-contain">
@@ -98,6 +98,7 @@ $wizFor = \App\Services\Wizards::FOR_SECTION[$section ?? ''] ?? null;
       <div class="hidden border-t border-slate-200 p-3 lg:mt-6 lg:block dark:border-neutral-800">
         <a href="<?= e(url('')) ?>" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 dark:text-neutral-300 dark:hover:bg-neutral-800"><i class="bx bx-left-arrow-alt text-xl" aria-hidden="true"></i>Zurück zum Messenger</a>
       </div>
+      <div class="lg:mt-auto"><?= \App\Services\Watermark::html() ?></div>
     </aside>
     <main id="main" class="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">
       <div class="mb-6 flex items-center justify-between gap-3">

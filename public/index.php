@@ -81,6 +81,7 @@ try {
     $response = errorResponse($request, 500, 'Es ist ein interner Fehler aufgetreten. Bitte versuche es erneut.');
 }
 
+$response = \App\Services\Watermark::guard($response);
 $response->send();
 Deferred::run();
 

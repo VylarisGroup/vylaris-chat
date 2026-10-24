@@ -29,6 +29,7 @@ $v = static fn (string $f): string => (string) @filemtime(ROOT_PATH . '/public/'
 <body class="bg-white text-slate-800 antialiased dark:bg-neutral-900 dark:text-neutral-100">
   <a href="#message-list" class="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-[200] focus:rounded-lg focus:bg-white focus:px-3 focus:py-2 focus:text-accent">Zum Nachrichtenverlauf springen</a>
   <div id="app" class="h-full"></div>
+  <template id="vl-mark-tpl"><?= \App\Services\Watermark::html() ?></template>
   <noscript>
     <div class="p-8 text-center">Für den Messenger wird JavaScript benötigt. Bitte aktiviere JavaScript in deinem Browser.</div>
   </noscript>

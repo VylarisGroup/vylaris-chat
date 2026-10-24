@@ -19,6 +19,14 @@
   .scroll-thin::-webkit-scrollbar-track { background: transparent; }
 }
 
+/* Herkunftshinweis: bewusst mit !important, damit er nicht versehentlich ausgeblendet wird */
+.vl-mark { display: block !important; visibility: visible !important; opacity: 1 !important; position: static; flex-shrink: 0; margin: 0; padding: 7px 12px 8px; text-align: center; font-size: 11px !important; line-height: 1.2; letter-spacing: .01em; color: #64748b; text-decoration: none; border-top: 1px solid rgb(226 232 240); background: transparent; }
+.vl-mark strong { font-weight: 600; color: rgb(var(--accent)); }
+.vl-mark:hover { text-decoration: underline; }
+.vl-mark--fixed { position: fixed !important; left: 0; bottom: 0; z-index: 40; width: 16rem; background: #fff; }
+.dark .vl-mark { color: #a3a3a3; border-top-color: rgb(38 38 38); }
+@media (prefers-color-scheme: dark) { .vl-mark--fixed { background: #171717; } }
+
 @layer components {
   .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition duration-150 disabled:cursor-not-allowed disabled:opacity-50; }
   .btn-primary { @apply bg-accent text-white shadow-sm hover:brightness-110 active:brightness-95; }

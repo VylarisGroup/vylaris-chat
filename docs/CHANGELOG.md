@@ -1,12 +1,16 @@
 # Änderungen
 
+## 1.18.0 – Herkunftshinweis
+
+* **«powered by VylarisChat»:** Am Fuss jeder Seitenleiste (Messenger und Administration) steht dezent der Hinweis «powered by VylarisChat» mit Link auf vylaris.ch. Er ist fest im Programm verankert, lässt sich nicht über Einstellungen ändern oder abschalten und wird bei jeder ausgelieferten Seite vom Server geprüft (geänderter Text oder Link wird zurückgesetzt, ein fehlender Hinweis ergänzt). Im Messenger prüft der Browser ihn zusätzlich laufend und stellt ihn bei Änderung oder Entfernung wieder her.
+
 ## 1.17.0 – Sprachnachrichten
 
 * **Aufnehmen:** Im Eingabefeld gibt es einen Mikrofon-Knopf. Ein Tipp startet die Aufnahme mit Timer und Pegelanzeige, mit dem Papierkorb verwirfst du sie, mit «Senden» geht sie sofort raus. Beim Wechsel in einen anderen Chat wird eine laufende Aufnahme verworfen. Die Länge ist begrenzt (Standard 5 Minuten, einstellbar) und läuft das Limit ab, wird die Nachricht automatisch gesendet.
 * **Abspielen:** In der Nachricht erscheint ein Player mit Wellenform, Abspielen/Pause, Spulen per Tipp auf die Wellenform (oder mit den Pfeiltasten), Dauer und Tempo 1×/1,5×/2×. Es spielt immer nur eine Sprachnachricht gleichzeitig.
 * **Überall nutzbar:** In Einzelchats, Gruppen und in den Notizen, auch beim Weiterleiten und «In Notizen speichern» (Dauer bleibt erhalten). In der Chat-Liste und in Zitaten steht «Sprachnachricht».
 * **Formate:** Der Browser nimmt auf, was er kann (WebM/Opus in Chrome, Edge, Firefox, MP4/AAC in Safari). Der Server prüft den Inhalt, nicht nur die Endung. Alte Safari-Versionen können WebM möglicherweise nicht abspielen, dann bietet der Player den Download an.
-* **Administration:** *Einstellungen → System*: Sprachnachrichten erlauben (Standard an) und maximale Dauer. Aufnahmen werden wie Dateien gespeichert, zählen zur Dateigrösse und werden mit den Nachrichten aufbewahrt und gelöscht.
+* **Administration:** «Einstellungen → System»: Sprachnachrichten erlauben (Standard an) und maximale Dauer. Aufnahmen werden wie Dateien gespeichert, zählen zur Dateigrösse und werden mit den Nachrichten aufbewahrt und gelöscht.
 * **Datenschutz und Sicherheit:** Das Mikrofon wird nur nach Tipp auf den Knopf und nach deiner Freigabe im Browser verwendet und danach sofort wieder freigegeben. Aufnahme erfordert HTTPS (oder localhost). Die KI sieht von Sprachnachrichten nur, dass eine existiert (keine Transkription).
 * Datenbank-Migration 011 (automatisch beim Update).
 
@@ -19,7 +23,7 @@
 
 ### KI-Assistent (OpenAI-kompatibel)
 
-* **Anbindung:** Neue Administrationsseite *System → KI-Assistent*: Endpunkt (Basis-Adresse, der Messenger ruft `…/chat/completions` auf), API-Schlüssel (verschlüsselt gespeichert), Modell, Anzeigename, Systemprompt, Temperatur, Antwortlänge, Zeitlimit, Kontext-Limit (höchstens 90 000 Tokens) und Verbindungstest. Funktioniert mit OpenAI und kompatiblen Diensten oder lokalen Servern. Modelle, die `max_completion_tokens` verlangen oder keine eigene Temperatur erlauben, werden automatisch erkannt.
+* **Anbindung:** Neue Administrationsseite «System → KI-Assistent»: Endpunkt (Basis-Adresse, der Messenger ruft `…/chat/completions` auf), API-Schlüssel (verschlüsselt gespeichert), Modell, Anzeigename, Systemprompt, Temperatur, Antwortlänge, Zeitlimit, Kontext-Limit (höchstens 90 000 Tokens) und Verbindungstest. Funktioniert mit OpenAI und kompatiblen Diensten oder lokalen Servern. Modelle, die `max_completion_tokens` verlangen oder keine eigene Temperatur erlauben, werden automatisch erkannt.
 * **Genau eine KI pro Installation.** Sie erscheint wie eine Person (@ki) im Verzeichnis, ist ein Systemkonto ohne Anmeldung und zählt nicht als Lizenzplatz.
 * **Einzelchat und Gruppen:** Jeder (ausser Gästen) kann einen Chat mit der KI starten. Zu Gruppen fügt die Moderation sie hinzu; alle Mitglieder sehen dazu eine Systemmeldung. In Gruppen antwortet die KI nur auf @Erwähnung oder wenn auf eine ihrer Nachrichten geantwortet wird, im Einzelchat auf jede Nachricht.
 * **Kontext pro Chat:** In den Details wählt man, was mitgeschickt wird: nur die Anfrage, die letzten ca. 20 Nachrichten oder der ganze Verlauf seit dem Beitritt der KI, immer begrenzt durch das Token-Limit. In Gruppen ändert das die Moderation. Nachrichten vor dem Beitritt der KI sieht sie nie.

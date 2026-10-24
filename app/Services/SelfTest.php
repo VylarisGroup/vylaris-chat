@@ -758,6 +758,23 @@ final class SelfTest
                 $g = self::newUser('NG', 'guest');
                 self::ok(Chat::ensureNotes((int) $g['id']) === null, 'Gäste haben keine Notizen');
             },
+            'Herkunftshinweis: fest verankert, Manipulationen werden zurückgesetzt' => static function () {
+                $html = Watermark::html();
+                self::ok(str_contains($html, 'href="https://vylaris.ch"') && str_contains($html, 'powered by <strong>VylarisChat</strong>') && str_contains($html, 'data-vl-mark'), 'Hinweis-Markup');
+                foreach (['app/Views/layouts/main.php', 'app/Views/app.php'] as $f) {
+                    self::ok(str_contains((string) file_get_contents(ROOT_PATH . '/' . $f), 'Watermark::html()'), $f . ' bindet den Hinweis nicht ein');
+                }
+                self::ok(str_contains((string) file_get_contents(ROOT_PATH . '/public/index.php'), 'Watermark::guard('), 'Wächter nicht in index.php');
+                $page = static fn (string $inner) => new \App\Core\Response(200, '<html><body><aside data-admin-nav>' . $inner . '</aside></body></html>', ['Content-Type' => 'text/html; charset=utf-8']);
+                $tampered = Watermark::guard($page('<a class="vl-mark" data-vl-mark href="https://example.org" style="display:none">eigener Text</a>'))->body;
+                self::ok(str_contains($tampered, Watermark::html()) && !str_contains($tampered, 'example.org') && substr_count($tampered, 'data-vl-mark') === 1, 'Geänderter Hinweis wird nicht zurückgesetzt');
+                $missing = Watermark::guard($page(''))->body;
+                self::ok(str_contains($missing, 'vl-mark--fixed') && str_contains($missing, 'https://vylaris.ch'), 'Fehlender Hinweis wird nicht ergänzt');
+                $app = Watermark::guard(new \App\Core\Response(200, '<html><body><div id="app"></div></body></html>', ['Content-Type' => 'text/html']))->body;
+                self::ok(str_contains($app, '<template id="vl-mark-tpl">' . Watermark::html() . '</template>'), 'Vorlage im Messenger wird nicht ergänzt');
+                $login = Watermark::guard(new \App\Core\Response(200, '<html><body>Login</body></html>', ['Content-Type' => 'text/html']))->body;
+                self::ok(!str_contains($login, 'data-vl-mark'), 'Seiten ohne Seitenleiste bleiben frei');
+            },
             'Sprachnachrichten: Formate, Dauer-Limit und Anhangs-Ansicht' => static function () {
                 self::ok(isset(Files::VOICE_MIMES['audio/webm'], Files::VOICE_MIMES['audio/mp4']) && !isset(Files::VOICE_MIMES['text/plain'], Files::VOICE_MIMES['audio/x-wav']), 'Formatliste');
                 $v = Files::voiceMaxSeconds();
