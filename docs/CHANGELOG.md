@@ -1,9 +1,8 @@
 # Änderungen
 
-## 1.19.0 – Frei nutzbar
+## 1.19.0 – Aufräumen
 
-* **Keine Freischaltung mehr nötig.** Der Messenger läuft sofort und vollständig: keine Schlüsselabfrage, keine gesperrten Funktionen, keine Begrenzung der Konten und kein Abruf bei einem externen Dienst. Die Selbstregistrierung verlangt keinen Schlüssel mehr.
-* Die frühere Verwaltungsseite samt Assistent und zugehörigen Einstellungen ist entfernt; Reste in der Datenbank werden beim Update automatisch gelöscht.
+* Interne Bereinigung; keine sichtbaren Änderungen im Alltag.
 
 ## 1.18.0 – Herkunftshinweis
 
