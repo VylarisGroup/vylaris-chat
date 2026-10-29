@@ -35,7 +35,6 @@ $navGroups = [
         ['ai', 'admin/ai', 'KI-Assistent', 'bot'],
     ]],
     ['Software', 'package', [
-        ['license', 'admin/license', 'Lizenz', 'key'],
         ['update', 'admin/update', 'Aktualisierung', 'cloud-download'],
         ['changelog', 'admin/changelog', 'Änderungen', 'news'],
     ]],
@@ -119,9 +118,6 @@ $wizFor = \App\Services\Wizards::FOR_SECTION[$section ?? ''] ?? null;
       <?php endif; ?>
       <?php if (($section ?? '') !== 'update' && \App\Services\Updater::available()): ?>
         <div class="alert alert-info" role="status"><i class="bx bx-cloud-download mt-0.5 text-lg" aria-hidden="true"></i><span class="min-w-0 break-words"><strong>Update verfügbar.</strong> <a class="font-medium underline" href="<?= e(url('admin/update')) ?>">Aktualisierung öffnen</a></span></div>
-      <?php endif; ?>
-      <?php if (($section ?? '') !== 'license' && !\App\Services\License::active()): ?>
-        <div class="alert alert-error" role="alert"><i class="bx bx-lock-alt mt-0.5 text-lg" aria-hidden="true"></i><span class="min-w-0 break-words"><strong>Nur-Lesen-Modus:</strong> <?= e(\App\Services\License::status()['message']) ?> <a class="font-medium underline" href="<?= e(url('admin/license')) ?>">Lizenz verwalten</a></span></div>
       <?php endif; ?>
       <?php if (!empty($notice)): ?>
         <div class="alert alert-success" role="status"><i class="bx bx-check-circle mt-0.5 text-lg" aria-hidden="true"></i><span class="min-w-0 break-words"><?= e($notice) ?></span></div>

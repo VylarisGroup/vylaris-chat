@@ -314,7 +314,7 @@ final class Backup
     public static function maybeScheduled(): void
     {
         $days = Settings::int('backup_auto_days');
-        if (!License::has('backup') || $days <= 0 || time() - Settings::int('backup_last_at') < $days * 86400 - 600) {
+        if ($days <= 0 || time() - Settings::int('backup_last_at') < $days * 86400 - 600) {
             return;
         }
         // Atomar reservieren, damit nur ein Prozess das Backup anstösst

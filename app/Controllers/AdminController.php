@@ -282,9 +282,6 @@ final class AdminController extends Controller
     {
         $admin = $this->user();
         $role = $this->roleInput($r);
-        if ($err = \App\Services\License::canAddUser()) {
-            return $this->back('admin/users', null, $err);
-        }
         $res = Auth::invite($r->str('email', '', 190), $role, (int) $admin['id'], null, $r->intList('conversation_ids'), $r->int('guest_days', 30));
         if (!$res['ok']) {
             return $this->back('admin/users', null, $res['error']);
@@ -412,16 +409,9 @@ final class AdminController extends Controller
                 }
                 Database::exec('UPDATE users SET is_active = 0, updated_at = ? WHERE id = ?', [now(), $id]);
                 Database::exec('UPDATE user_sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL', [now(), $id]);
-                \App\Services\License::reconcileLater();
                 $msg = 'Konto deaktiviert. Aktive Sitzungen wurden beendet.';
                 break;
             case 'activate':
-                if ($err = \App\Services\License::canAddUser()) {
-                    return $this->back($back, null, $err);
-                }
-                if ($err = \App\Services\License::claimSeat($id)) {
-                    return $this->back($back, null, $err);
-                }
                 Database::exec('UPDATE users SET is_active = 1, updated_at = ? WHERE id = ?', [now(), $id]);
                 $msg = 'Konto aktiviert.';
                 break;

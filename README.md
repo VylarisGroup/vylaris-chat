@@ -47,8 +47,6 @@ docs/          Dokumentation
 2. `https://ihre-domain/setup.php` öffnen und dem Assistenten folgen.
 3. Als Administrator anmelden, SMTP prüfen, Personen einladen.
 
-**Lizenz:** Der Messenger ist lizenzpflichtig (TRS License). Nach der Installation unter *Administration → Lizenz* den Firmenschlüssel eintragen, sonst läuft er im Nur-Lesen-Modus. Siehe [docs/LIZENZ.md](docs/LIZENZ.md).
-
 **Updates:** Der Messenger kann sich aus den GitHub-Releases aktualisieren (Prüfung automatisch, Installation per Klick). Siehe [docs/UPDATE.md](docs/UPDATE.md).
 
 Ausführlich: [docs/INSTALLATION.md](docs/INSTALLATION.md) · [docs/ADMINISTRATION.md](docs/ADMINISTRATION.md) · [docs/SECURITY.md](docs/SECURITY.md)

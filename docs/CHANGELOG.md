@@ -1,5 +1,10 @@
 # Änderungen
 
+## 1.19.0 – Frei nutzbar
+
+* **Keine Freischaltung mehr nötig.** Der Messenger läuft sofort und vollständig: keine Schlüsselabfrage, keine gesperrten Funktionen, keine Begrenzung der Konten und kein Abruf bei einem externen Dienst. Die Selbstregistrierung verlangt keinen Schlüssel mehr.
+* Die frühere Verwaltungsseite samt Assistent und zugehörigen Einstellungen ist entfernt; Reste in der Datenbank werden beim Update automatisch gelöscht.
+
 ## 1.18.0 – Herkunftshinweis
 
 * **«powered by VylarisChat»:** Am Fuss jeder Seitenleiste (Messenger und Administration) steht dezent der Hinweis «powered by VylarisChat» mit Link auf vylaris.ch. Er ist fest im Programm verankert, lässt sich nicht über Einstellungen ändern oder abschalten und wird bei jeder ausgelieferten Seite vom Server geprüft (geänderter Text oder Link wird zurückgesetzt, ein fehlender Hinweis ergänzt). Im Messenger prüft der Browser ihn zusätzlich laufend und stellt ihn bei Änderung oder Entfernung wieder her.
@@ -24,7 +29,7 @@
 ### KI-Assistent (OpenAI-kompatibel)
 
 * **Anbindung:** Neue Administrationsseite «System → KI-Assistent»: Endpunkt (Basis-Adresse, der Messenger ruft `…/chat/completions` auf), API-Schlüssel (verschlüsselt gespeichert), Modell, Anzeigename, Systemprompt, Temperatur, Antwortlänge, Zeitlimit, Kontext-Limit (höchstens 90 000 Tokens) und Verbindungstest. Funktioniert mit OpenAI und kompatiblen Diensten oder lokalen Servern. Modelle, die `max_completion_tokens` verlangen oder keine eigene Temperatur erlauben, werden automatisch erkannt.
-* **Genau eine KI pro Installation.** Sie erscheint wie eine Person (@ki) im Verzeichnis, ist ein Systemkonto ohne Anmeldung und zählt nicht als Lizenzplatz.
+* **Genau eine KI pro Installation.** Sie erscheint wie eine Person (@ki) im Verzeichnis und ist ein Systemkonto ohne Anmeldung.
 * **Einzelchat und Gruppen:** Jeder (ausser Gästen) kann einen Chat mit der KI starten. Zu Gruppen fügt die Moderation sie hinzu; alle Mitglieder sehen dazu eine Systemmeldung. In Gruppen antwortet die KI nur auf @Erwähnung oder wenn auf eine ihrer Nachrichten geantwortet wird, im Einzelchat auf jede Nachricht.
 * **Kontext pro Chat:** In den Details wählt man, was mitgeschickt wird: nur die Anfrage, die letzten ca. 20 Nachrichten oder der ganze Verlauf seit dem Beitritt der KI, immer begrenzt durch das Token-Limit. In Gruppen ändert das die Moderation. Nachrichten vor dem Beitritt der KI sieht sie nie.
 * **Antwort:** Die Antwort kommt fertig als eine Nachricht, solange läuft «schreibt …». Jede Nachricht der KI trägt das Label «KI-Antwort». Fehler erscheinen als Systemmeldung.
@@ -96,8 +101,8 @@ Diese Version fasst die übersprungenen Versionen 1.10.0 bis 1.14.0 zusammen.
 ## 1.7.0 – Assistenten und neue Seitenleiste
 
 * **Seitenleiste überarbeitet:** Die Administration ist in ausklappbare Gruppen gegliedert (Verwaltung, Sicherheit & Datenschutz, System, Software, Assistenten). Die Gruppe der aktuellen Seite ist offen, der Zustand der übrigen wird im Browser gemerkt. Mobil lässt sich das ganze Menü einklappen.
-* **Assistenten:** Schritt für Schritt einrichten – Person hinzufügen (Einladung oder direkt anlegen), E-Mail-Versand, Einmalanmeldung (SSO), Backup und Lizenz. Jeder Assistent zeigt am Ende eine Übersicht und speichert dasselbe wie das klassische Formular.
-* Die klassischen Formulare bleiben unverändert; auf den Seiten Benutzer, Einstellungen, Sicherheit, Backup und Lizenz führt der Knopf «Mit Assistent» direkt zum passenden Assistenten.
+* **Assistenten:** Schritt für Schritt einrichten – Person hinzufügen (Einladung oder direkt anlegen), E-Mail-Versand, Einmalanmeldung (SSO) und Backup. Jeder Assistent zeigt am Ende eine Übersicht und speichert dasselbe wie das klassische Formular.
+* Die klassischen Formulare bleiben unverändert; auf den Seiten Benutzer, Einstellungen, Sicherheit und Backup führt der Knopf «Mit Assistent» direkt zum passenden Assistenten.
 
 ## 1.6.0 – Änderungsprotokoll
 
@@ -108,6 +113,4 @@ Diese Version fasst die übersprungenen Versionen 1.10.0 bis 1.14.0 zusammen.
 ## 1.5.0
 
 * Update-Quelle fest: GitHub-Releases von `VylarisGroup/vylaris-chat`; nicht mehr in der Oberfläche einstellbar.
-* Lizenzserver und öffentlicher Signaturschlüssel fest eingebaut; nicht mehr in der Oberfläche einstellbar.
-* Lizenzsystem mit Funktions-Scopes, Platzbegrenzung pro Konto und Nur-Lesen-Modus.
 * Selbstaktualisierung aus GitHub-Releases mit Backup, Wartungsmodus und Rückbau.

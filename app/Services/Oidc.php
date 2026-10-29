@@ -18,7 +18,7 @@ final class Oidc
 {
     public static function enabled(): bool
     {
-        return License::has('sso') && Settings::bool('oidc_enabled') && Settings::get('oidc_issuer') !== '' && Settings::get('oidc_client_id') !== '' && Settings::get('oidc_client_secret_enc') !== '';
+        return Settings::bool('oidc_enabled') && Settings::get('oidc_issuer') !== '' && Settings::get('oidc_client_id') !== '' && Settings::get('oidc_client_secret_enc') !== '';
     }
 
     /** Akzeptiert Issuer- oder vollständige Discovery-URL und liefert den Issuer ohne Suffix und Schrägstrich. */

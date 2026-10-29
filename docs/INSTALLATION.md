@@ -105,6 +105,3 @@ Hinter einem Reverse-Proxy/Load-Balancer im Setup „Reverse-Proxy“ aktivieren
 | Seiten ohne Styling | Document Root zeigt nicht auf `public/`, oder `assets/` wird geblockt |
 
 
-## Lizenz eintragen
-
-Nach dem Setup meldest du dich als Administrator an und trägst unter *Administration → Lizenz* den Lizenzschlüssel ein (siehe [LIZENZ.md](LIZENZ.md)). Ohne gültige Lizenz läuft die Installation im Nur-Lesen-Modus; die Selbstregistrierung verlangt den Schlüssel ebenfalls.

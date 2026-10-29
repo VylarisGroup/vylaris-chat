@@ -149,7 +149,7 @@ final class Auth
     /** Muss diese Person noch 2FA einrichten (Pflicht für Administratoren per Einstellung)? */
     public static function mustSetupTwoFactor(array $user): bool
     {
-        return $user['role'] === 'admin' && License::has('2fa') && Settings::bool('require_2fa_admins') && empty($user['sso_subject']) && !Totp::isEnabled($user);
+        return $user['role'] === 'admin' && Settings::bool('require_2fa_admins') && empty($user['sso_subject']) && !Totp::isEnabled($user);
     }
 
     /** Neue Sitzung nach erfolgreicher Authentifizierung (ID-Regeneration gegen Session Fixation). */
@@ -210,7 +210,6 @@ final class Auth
             Database::exec('UPDATE users SET is_active = 0, updated_at = ? WHERE id = ?', [now(), $user['id']]);
             Database::exec('UPDATE user_sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL', [now(), $user['id']]);
             Audit::log('guest.expired', (int) $user['id'], 'user', (int) $user['id']);
-            License::reconcileLater();
         }
     }
 
@@ -268,15 +267,8 @@ final class Auth
         if (Database::value('SELECT 1 FROM users WHERE email = ?', [$email])) {
             return ['ok' => false, 'error' => 'Für diese E-Mail-Adresse existiert bereits ein Konto.'];
         }
-        if ($err = License::canAddUser()) {
-            return ['ok' => false, 'error' => $err];
-        }
         $needsVerify = !$verified && Settings::bool('require_email_verification');
         $id = User::create($email, $displayName, self::hashPassword($password), $role, !$needsVerify);
-        if ($err = License::claimSeat($id)) {
-            Database::exec('DELETE FROM users WHERE id = ?', [$id]);
-            return ['ok' => false, 'error' => $err];
-        }
         if ($needsVerify) {
             self::sendVerification($id);
         }
@@ -548,6 +540,5 @@ final class Auth
             Events::push('conversation.updated', (int) $cid);
         }
         Audit::log('user.anonymized', $reason === 'self' ? $userId : null, 'user', $userId, $reason . ($eraseContent ? ' (Inhalte gelöscht: ' . $erased . ' Nachrichten)' : ''));
-        License::reconcileLater();
     }
 }

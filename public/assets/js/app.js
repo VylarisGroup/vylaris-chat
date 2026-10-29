@@ -105,15 +105,6 @@ async function main() {
   for (const c of boot.conversations) store.upsertConversation(c);
   store.ready = true;
   store.meets = boot.meets || null;
-  store.license = boot.license || { read_only: false, features: [] };
-  if (store.license.read_only) {
-    const row = app.firstElementChild;
-    app.classList.add('flex', 'flex-col');
-    row.classList.remove('h-full');
-    row.classList.add('min-h-0', 'flex-1');
-    app.insertBefore(h('div', { class: 'flex items-center justify-center gap-2 bg-amber-100 px-3 py-1.5 text-xs font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200', role: 'status' },
-      icon('lock-alt', 'text-base'), `Nur-Lesen-Modus: ${store.license.message} Bitte wende dich an die Administration.`), row);
-  }
 
   clear(parts.sidebar);
   initSidebar(parts.sidebar);

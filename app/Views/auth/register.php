@@ -7,11 +7,6 @@
 <form method="post" action="<?= e(url('register')) ?>" class="space-y-4">
   <?= Csrf::field() ?>
   <div>
-    <label for="lic" class="label">Lizenzschlüssel</label>
-    <input id="lic" name="license_key" type="text" required maxlength="80" autocomplete="off" spellcheck="false" class="input font-mono uppercase" placeholder="XX-XXXX-XXXX-XXXX" value="<?= e($old['license_key'] ?? '') ?>">
-    <p class="mt-1 text-xs text-slate-500 dark:text-neutral-400">Den Schlüssel erhältst du von deiner Administration.</p>
-  </div>
-  <div>
     <label for="name" class="label">Anzeigename</label>
     <input id="name" name="name" type="text" required minlength="2" maxlength="80" autocomplete="name" class="input" value="<?= e($old['name'] ?? '') ?>">
   </div>

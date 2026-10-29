@@ -24,11 +24,9 @@ use App\Controllers\Api\PushController;
 use App\Controllers\PageController;
 use App\Core\Router;
 use App\Middleware\Authenticate;
-use App\Controllers\AdminLicenseController;
 use App\Controllers\AdminChangelogController;
 use App\Controllers\AdminUpdateController;
 use App\Controllers\AdminWizardController;
-use App\Middleware\LicenseGate;
 use App\Middleware\ReleaseSession;
 use App\Middleware\RequireAdmin;
 use App\Middleware\VerifyCsrf;
@@ -36,8 +34,8 @@ use App\Middleware\VerifyCsrf;
 return static function (Router $r): void {
     $csrf = [VerifyCsrf::class];
     $auth = [Authenticate::class];
-    $api = [Authenticate::class, VerifyCsrf::class, LicenseGate::class, ReleaseSession::class];
-    $admin = [Authenticate::class, RequireAdmin::class, VerifyCsrf::class, LicenseGate::class];
+    $api = [Authenticate::class, VerifyCsrf::class, ReleaseSession::class];
+    $admin = [Authenticate::class, RequireAdmin::class, VerifyCsrf::class];
 
     // Anmeldung und Konto (öffentlich)
     $r->add('GET', '/login', [AuthController::class, 'showLogin']);
@@ -66,7 +64,7 @@ return static function (Router $r): void {
     $r->add('GET', '/password-change', [SecurityController::class, 'showPasswordChange'], $auth);
     $r->add('POST', '/password-change', [SecurityController::class, 'passwordChange'], [Authenticate::class, VerifyCsrf::class]);
     $r->add('GET', '/security/2fa', [SecurityController::class, 'showTwoFactorSetup'], $auth);
-    $r->add('POST', '/security/2fa', [SecurityController::class, 'twoFactorSetup'], [Authenticate::class, VerifyCsrf::class, LicenseGate::class]);
+    $r->add('POST', '/security/2fa', [SecurityController::class, 'twoFactorSetup'], [Authenticate::class, VerifyCsrf::class]);
 
     // Oberfläche und geschützte Medien
     $r->add('GET', '/', [PageController::class, 'app'], $auth);
@@ -212,10 +210,6 @@ return static function (Router $r): void {
     $r->add('GET', '/admin/ai', [AdminAiController::class, 'index'], $admin);
     $r->add('POST', '/admin/ai/save', [AdminAiController::class, 'save'], $admin);
     $r->add('POST', '/admin/ai/test', [AdminAiController::class, 'test'], $admin);
-    $r->add('GET', '/admin/license', [AdminLicenseController::class, 'index'], $admin);
-    $r->add('POST', '/admin/license/save', [AdminLicenseController::class, 'save'], $admin);
-    $r->add('POST', '/admin/license/check', [AdminLicenseController::class, 'check'], $admin);
-    $r->add('POST', '/admin/license/remove', [AdminLicenseController::class, 'remove'], $admin);
     $r->add('GET', '/admin/wizard', [AdminWizardController::class, 'index'], $admin);
     $r->add('GET', '/admin/wizard/{name}', [AdminWizardController::class, 'show'], $admin);
     $r->add('GET', '/admin/changelog', [AdminChangelogController::class, 'index'], $admin);

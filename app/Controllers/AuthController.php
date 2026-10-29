@@ -129,7 +129,7 @@ final class AuthController extends Controller
         if (!Settings::bool('registration_enabled')) {
             return $this->guest('auth/message', ['title' => 'Registrierung', 'heading' => 'Registrierung nicht verfügbar', 'text' => 'Die Selbstregistrierung ist deaktiviert. Bitte frage eine Administratorin oder einen Administrator nach einer Einladung.', 'tone' => 'info'], 403);
         }
-        return $this->guest('auth/register', ['title' => 'Registrieren', 'error' => null, 'old' => ['email' => '', 'name' => '', 'license_key' => '']]);
+        return $this->guest('auth/register', ['title' => 'Registrieren', 'error' => null, 'old' => ['email' => '', 'name' => '']]);
     }
 
     public function register(Request $r): Response
@@ -139,7 +139,7 @@ final class AuthController extends Controller
         }
         $email = mb_strtolower($r->str('email', '', 190));
         $name = $r->str('name', '', 80);
-        $old = ['email' => $email, 'name' => $name, 'license_key' => $r->str('license_key', '', 80)];
+        $old = ['email' => $email, 'name' => $name];
         if (!\App\Services\RateLimiter::hit('register_ip', client_ip(), 10, 3600)) {
             return $this->guest('auth/register', ['title' => 'Registrieren', 'error' => 'Zu viele Registrierungen von dieser Adresse. Bitte versuche es später erneut.', 'old' => $old], 429);
         }
@@ -148,12 +148,6 @@ final class AuthController extends Controller
         }
         if (Auth::validEmail($email) && !Auth::registrationAllowedFor($email)) {
             return $this->guest('auth/register', ['title' => 'Registrieren', 'error' => 'Registrierungen sind nur mit einer freigegebenen Firmen-E-Mail-Adresse möglich.', 'old' => $old], 422);
-        }
-        if (!\App\Services\RateLimiter::hit('license_key_ip', client_ip(), 10, 3600)) {
-            return $this->guest('auth/register', ['title' => 'Registrieren', 'error' => 'Zu viele Versuche. Bitte versuche es später erneut.', 'old' => $old], 429);
-        }
-        if (!\App\Services\License::keyMatches($old['license_key'])) {
-            return $this->guest('auth/register', ['title' => 'Registrieren', 'error' => 'Der Lizenzschlüssel ist ungültig.', 'old' => $old], 422);
         }
         $res = Auth::register($email, $name, $r->str('password', '', 500));
         if (!$res['ok']) {

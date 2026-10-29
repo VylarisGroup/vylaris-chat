@@ -61,7 +61,7 @@ req(A, 'POST', '/admin/ai/test', {'_csrf': t}); s, h, _ = req(A, 'GET', '/admin/
 chk('Verbindungstest erfolgreich', 'Verbindung erfolgreich' in h, h[h.find('Verbindung') - 50:h.find('Verbindung') + 200] if 'Verbindung' in h else 'kein Hinweis')
 lr = last(); chk('Anfrage: Bearer-Schlüssel, Modell, nicht streamend', lr['auth'] == 'Bearer sk-test-123' and lr['body']['model'] == 'gpt-test' and lr['body']['stream'] is False, lr)
 bot = sql('select id from users where is_bot=1'); chk('Bot-Konto angelegt', bot != '' and sql(f'select count(*) from users where is_bot=1') == '1')
-chk('Bot zählt nicht als Lizenzplatz', sql('select count(*) from users where is_active=1 and deleted_at is null and is_bot=0') != sql('select count(*) from users where is_active=1 and deleted_at is null'))
+chk('Bot zählt nicht als aktives Konto', sql('select count(*) from users where is_active=1 and deleted_at is null and is_bot=0') != sql('select count(*) from users where is_active=1 and deleted_at is null'))
 op, cj = make(); s, h, _ = req(op, 'GET', '/login'); t = csrf(h)
 s, h, _ = req(op, 'POST', '/login', {'email': 'ki-assistent@bot.invalid', 'password': '!', '_csrf': t}); chk('Bot kann sich nicht anmelden', s != 302 or 'login' in str(_.get('Location', '')), s)
 s, d = api(B, bb, 'GET', '/api/users?q=KI'); users = d.get('users', d)

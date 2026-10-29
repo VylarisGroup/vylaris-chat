@@ -41,7 +41,7 @@
     <li>Bei jeder Anfrage übermittelt der Messenger den Text der auslösenden Nachricht sowie, je nach Einstellung des Chats, die letzten rund 20 Nachrichten oder den gesamten Verlauf seit dem Beitritt der KI (mit Anzeigenamen, ohne E-Mail-Adressen) an den oben eingetragenen Anbieter. Dateien werden nicht übertragen, nur ihre Namen.</li>
     <li>Der Anbieter ist Auftragsverarbeiter bzw. Empfänger. Bitte Vertrag (AVV) und Standort prüfen und ihn in der Datenschutzerklärung unter «Empfänger» nennen. Die Erklärung erwähnt die KI automatisch, solange sie aktiv ist.</li>
     <li>In Gruppen sehen alle Mitglieder per Systemmeldung, dass die KI hinzugefügt wurde. Der Kontext der Gruppe (letzte Nachrichten / ganzer Verlauf / nur Anfrage) wird von der Moderation im Bereich «Details» gewählt.</li>
-    <li>Die KI läuft als Systemkonto, zählt nicht als Lizenzplatz und kann sich nicht anmelden. Wird sie deaktiviert, bleiben bestehende Chats erhalten, antworten aber nicht mehr.</li>
+    <li>Die KI läuft als Systemkonto, kann sich nicht anmelden. Wird sie deaktiviert, bleiben bestehende Chats erhalten, antworten aber nicht mehr.</li>
     <li>Die Antworten werden vollständig geholt und dann als eine Nachricht gesendet (kein Streaming). Während der Wartezeit erscheint «schreibt …».</li>
   </ul>
 </section>

@@ -63,11 +63,6 @@ final class Retention
         } catch (\Throwable $e) {
             log_error('Update-Prüfung: ' . $e->getMessage());
         }
-        try {
-            License::maintain();
-        } catch (\Throwable $e) {
-            log_error('Lizenzwartung: ' . $e->getMessage());
-        }
         Monitor::rotateLog();
         Backup::maybeScheduled();
         $stats['jobs'] = Jobs::purge();

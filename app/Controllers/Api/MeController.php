@@ -61,8 +61,7 @@ final class MeController extends Controller
             'reactions' => Messages::REACTIONS,
             'base' => app_base_path(),
             'e2ee' => false,
-            'license' => ['read_only' => !\App\Services\License::active(), 'message' => \App\Services\License::active() ? '' : \App\Services\License::status()['message'], 'features' => \App\Services\License::active() ? \App\Services\License::status()['features'] : []],
-            'realtime' => Settings::get('realtime_mode') === 'sse' && \App\Services\License::has('realtime') ? 'sse' : 'poll',
+            'realtime' => Settings::get('realtime_mode') === 'sse' ? 'sse' : 'poll',
             'push' => Settings::bool('push_enabled') ? ['public_key' => Settings::get('vapid_public')] : null,
             'meets' => \App\Services\Meets::enabled() ? ['origin' => \App\Services\Meets::embedOrigin()] : null,
         ]);

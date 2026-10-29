@@ -31,7 +31,7 @@ with sync_playwright() as p:
     pg.goto(B + '/admin'); pg.wait_for_selector('nav[data-admin-nav]')
     chk('Administration: Hinweis in der Seitenleiste', good(pg, 'aside'))
     pg.screenshot(path='/tmp/ai/mark_admin.png')
-    for path in ['/admin/users', '/admin/ai', '/admin/settings', '/admin/license']:
+    for path in ['/admin/users', '/admin/ai', '/admin/settings']:
         pg.goto(B + path); chk(f'Administration {path}: genau ein Hinweis', good(pg, 'aside'))
     # Mobil
     m = login(br.new_context(viewport={'width': 390, 'height': 780}, has_touch=True, is_mobile=True))

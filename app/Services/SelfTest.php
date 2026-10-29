@@ -57,7 +57,6 @@ final class SelfTest
         self::group('Videokonferenzen (Testdaten, wird zurückgerollt)', self::meetings(), true);
         self::group('Notizen und KI-Assistent (Testdaten, wird zurückgerollt)', self::assistant(), true);
         self::group('Backup, Betrieb und Prüfpaket', self::operations());
-        self::group('Lizenz', self::licensing());
         self::group('Aktualisierung', self::updating());
         self::group('Änderungsprotokoll', self::changelog());
         self::group('Assistenten', self::wizards());
@@ -1143,78 +1142,6 @@ final class SelfTest
     }
 
     // ------------------------------------------ Backup, Betrieb, Prüfpaket
-
-    private static function licensing(): array
-    {
-        return [
-            'Lizenzstatus' => static function () {
-                $st = License::status();
-                if ($st['state'] !== 'ok') {
-                    return ['warn', 'Keine gültige Lizenz (' . $st['message'] . ') – die Installation läuft im Nur-Lesen-Modus.'];
-                }
-                return 'Lizenz gültig, ' . $st['maxDevices'] . ' Plätze, Funktionen: ' . implode(', ', $st['features']);
-            },
-            'Lizenz: Signaturprüfung (gültig, manipuliert, fremder Schlüssel, zu alt)' => static function () {
-                $kp = sodium_crypto_sign_keypair();
-                $other = sodium_crypto_sign_keypair();
-                $pem = base64_encode(hex2bin('302a300506032b6570032100') . sodium_crypto_sign_publickey($kp));
-                {
-                    $now = time();
-                    $payload = json_encode(['valid' => true, 'code' => 'OK', 'ts' => $now]);
-                    $sig = base64_encode(sodium_crypto_sign_detached($payload, sodium_crypto_sign_secretkey($kp)));
-                    self::eq('OK', License::verified($payload, $sig, $now, $pem)['code'], 'Gültige Antwort');
-                    $thrown = static function (callable $f): bool {
-                        try {
-                            $f();
-                        } catch (\RuntimeException) {
-                            return true;
-                        }
-                        return false;
-                    };
-                    self::ok($thrown(fn () => License::verified(str_replace('true', 'false', $payload), $sig, $now, $pem)), 'Manipulierte Nutzdaten akzeptiert.');
-                    $forged = base64_encode(sodium_crypto_sign_detached($payload, sodium_crypto_sign_secretkey($other)));
-                    self::ok($thrown(fn () => License::verified($payload, $forged, $now, $pem)), 'Fremde Signatur akzeptiert.');
-                    self::ok($thrown(fn () => License::verified($payload, $sig, $now + 3600, $pem)), 'Veraltete Antwort akzeptiert.');
-                    self::ok($thrown(fn () => License::verified($payload, 'kein-base64!', $now, $pem)), 'Defekte Signatur akzeptiert.');
-                }
-            },
-            'Lizenz: fester Schlüssel und Server' => static function () {
-                self::ok(License::publicKeyRaw(License::PUBLIC_KEY) !== null, 'Eingebauter Schlüssel ungültig.');
-                self::eq('EADF15A35395B758', strtoupper(substr(hash('sha256', (string) License::publicKeyRaw(License::PUBLIC_KEY)), 0, 16)), 'Prüfsumme des eingebauten Schlüssels');
-                self::ok(str_starts_with(License::SERVER, 'https://'), 'Lizenzserver ohne HTTPS');
-            },
-            'Lizenz: öffentlicher Schlüssel (PEM und Base64)' => static function () {
-                $raw = random_bytes(32);
-                $der = hex2bin('302a300506032b6570032100') . $raw;
-                $pem = "-----BEGIN PUBLIC KEY-----\n" . chunk_split(base64_encode($der), 64, "\n") . "-----END PUBLIC KEY-----";
-                self::ok(License::publicKeyRaw($pem) === $raw, 'PEM nicht gelesen.');
-                self::ok(License::publicKeyRaw(base64_encode($der)) === $raw, 'Base64-DER nicht gelesen.');
-                self::ok(License::publicKeyRaw('Müll') === null, 'Ungültiger Schlüssel akzeptiert.');
-            },
-            'Lizenz: Zuordnung Anfrage → Funktion (Scope)' => static function () {
-                $cases = [
-                    ['POST', '/api/conversations/12/messages', 'messaging'], ['POST', '/api/conversations/12/uploads', 'files'],
-                    ['POST', '/api/conversations/group', 'groups'], ['POST', '/api/conversations/3/members', 'groups'],
-                    ['PATCH', '/api/messages/9', 'messaging'], ['POST', '/security/2fa', '2fa'],
-                    ['POST', '/admin/backup/create', 'backup'], ['GET', '/admin/privacy/review', 'export'],
-                ];
-                foreach ($cases as [$m, $p, $scope]) {
-                    self::eq($scope, License::requirement($m, $p)['scope'] ?? null, "$m $p");
-                }
-                foreach ([['GET', '/api/conversations/12/messages'], ['POST', '/api/me/export'], ['POST', '/api/me/delete'], ['POST', '/api/messages/9/report'], ['DELETE', '/api/messages/9'], ['POST', '/login']] as [$m, $p]) {
-                    self::ok(License::requirement($m, $p) === null, "$m $p darf nicht lizenzgebunden sein (Datenschutzrechte, Lesen, Anmeldung).");
-                }
-                foreach (License::SCOPES as $k => $_) {
-                    self::ok(preg_match('/^[a-z0-9]+$/', $k) === 1, 'Scope-Kennung ungültig: ' . $k);
-                }
-            },
-            'Lizenz: Platz-Kennung pseudonym und stabil' => static function () {
-                $a = License::hwidFor(1);
-                self::ok($a === License::hwidFor(1) && $a !== License::hwidFor(2), 'Kennung nicht stabil/eindeutig.');
-                self::ok(strlen($a) <= 128 && str_starts_with($a, 'u-'), 'Format unerwartet.');
-            },
-        ];
-    }
 
     private static function wizards(): array
     {

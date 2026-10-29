@@ -30,7 +30,7 @@ final class PollController extends Controller
      */
     public function stream(Request $r): Response
     {
-        if (Settings::get('realtime_mode') !== 'sse' || !\App\Services\License::has('realtime')) {
+        if (Settings::get('realtime_mode') !== 'sse') {
             throw new \App\Core\HttpException(404, 'Echtzeitmodus ist nicht aktiviert.');
         }
         $user = $this->user();

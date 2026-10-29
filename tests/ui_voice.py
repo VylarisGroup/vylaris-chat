@@ -10,8 +10,10 @@ sql("insert into system_settings (k,v,updated_at) values ('voice_enabled','1',no
 def login(ctx, email, pw):
     pg = ctx.new_page(); pg.on('pageerror', lambda e: errs.append(str(e)))
     pg.goto(B + '/login'); pg.fill('input[name=email]', email); pg.fill('input[name=password]', pw); pg.click('button[type=submit]'); pg.wait_for_url(B + '/'); pg.wait_for_selector('#sidebar'); return pg
+DIRECT = sql("select c.id from conversations c join conversation_members a on a.conversation_id=c.id join users ua on ua.id=a.user_id and ua.email='anna@muster.ch' join conversation_members b on b.conversation_id=c.id join users ub on ub.id=b.user_id and ub.email='bob@muster.ch' where c.type='direct' order by c.id limit 1")
 def open_chat(pg, name):
-    pg.locator('#sidebar [data-cid]', has_text=name).first.click(); pg.wait_for_selector('#composer-input')
+    # Einzelchat Anna/Bob eindeutig über die Kennung (Gruppen anderer Tests erwähnen dieselben Namen)
+    pg.locator('#sidebar [data-cid="' + DIRECT + '"]' if name in ('Anna', 'Bob') else '#sidebar [data-cid]', has_text=None if name in ('Anna', 'Bob') else name).first.click(); pg.wait_for_selector('#composer-input')
 with sync_playwright() as p:
     br = p.chromium.launch(executable_path='/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args=['--headless=new', '--no-sandbox', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'])
     cb = br.new_context(viewport={'width': 1400, 'height': 900}, permissions=['microphone']); ca = br.new_context(viewport={'width': 1400, 'height': 900})

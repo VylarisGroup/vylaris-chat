@@ -15,7 +15,7 @@ final class Wizards
 {
     /** Abschnitt der klassischen Seite → Assistent (für den Knopf «Mit Assistent»). */
     public const FOR_SECTION = [
-        'users' => 'user', 'settings' => 'smtp', 'security' => 'sso', 'backup' => 'backup', 'license' => 'license',
+        'users' => 'user', 'settings' => 'smtp', 'security' => 'sso', 'backup' => 'backup',
     ];
 
     /** @return array<string,array<string,mixed>> */
@@ -120,20 +120,6 @@ final class Wizards
                         ['name' => 'backup_include_config', 'label' => 'Konfigurationsdatei (mit Schlüsseln) ins Backup aufnehmen', 'type' => 'checkbox', 'value' => $s['backup_include_config'],
                             'help' => 'Nur mit starker Passphrase und sicher aufbewahrt sinnvoll.'],
                         ['name' => 'backup_web_download', 'label' => 'Download über die Weboberfläche erlauben', 'type' => 'checkbox', 'value' => $s['backup_web_download']],
-                    ]],
-                ],
-            ],
-            'license' => [
-                'title' => 'Lizenz hinterlegen',
-                'summary' => 'Lizenzschlüssel eintragen und sofort prüfen.',
-                'icon' => 'key',
-                'action' => 'admin/license/save',
-                'submit' => 'Lizenz speichern und prüfen',
-                'steps' => [
-                    ['title' => 'Lizenzschlüssel', 'intro' => 'Ein Schlüssel für die ganze Installation. Jedes aktive Konto belegt einen Platz.', 'fields' => [
-                        ['name' => 'license_key', 'label' => 'Lizenzschlüssel', 'type' => 'text', 'required' => true, 'placeholder' => 'XX-XXXX-XXXX-XXXX', 'autocomplete' => 'off', 'max' => 80,
-                            'help' => License::key() !== '' ? 'Es ist bereits ein Schlüssel hinterlegt; ein neuer ersetzt ihn.' : ''],
-                        ['name' => 'license_product', 'label' => 'Produkt-Kennung', 'type' => 'hidden', 'value' => $s['license_product']],
                     ]],
                 ],
             ],

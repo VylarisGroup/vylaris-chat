@@ -71,6 +71,6 @@ $when = static fn (array $f): string => !empty($f['when']) ? ' data-when="' . e(
       </div>
     </div>
   </form>
-  <p class="mt-3 text-center text-xs text-slate-500 dark:text-neutral-400">Lieber alles auf einmal? <a class="underline" href="<?= e(url('admin/' . (['user' => 'users', 'smtp' => 'settings', 'sso' => 'security', 'backup' => 'backup', 'license' => 'license'][$name] ?? ''))) ?>">Zum klassischen Formular</a></p>
+  <p class="mt-3 text-center text-xs text-slate-500 dark:text-neutral-400">Lieber alles auf einmal? <a class="underline" href="<?= e(url('admin/' . (['user' => 'users', 'smtp' => 'settings', 'sso' => 'security', 'backup' => 'backup'][$name] ?? ''))) ?>">Zum klassischen Formular</a></p>
 </div>
 <script src="<?= e(url('assets/js/wizard.js')) ?>" defer></script>

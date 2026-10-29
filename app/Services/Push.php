@@ -32,7 +32,7 @@ final class Push
 
     public static function enabled(): bool
     {
-        return License::has('push') && Settings::bool('push_enabled') && Settings::get('vapid_public') !== '' && Settings::get('vapid_private_enc') !== '' && function_exists('curl_init');
+        return Settings::bool('push_enabled') && Settings::get('vapid_public') !== '' && Settings::get('vapid_private_enc') !== '' && function_exists('curl_init');
     }
 
     public static function allowedEndpoint(string $endpoint): bool
