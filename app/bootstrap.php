@@ -7,7 +7,8 @@ declare(strict_types=1);
  */
 
 define('ROOT_PATH', dirname(__DIR__));
-const APP_VERSION = '1.19.0';
+/** Die Version steht in der Datei VERSION (z. B. «v2.0.0»); hier ohne führendes «v». */
+define('APP_VERSION', ltrim(trim((string) @file_get_contents(ROOT_PATH . '/VERSION')), 'vV') ?: '0.0.0');
 
 if (PHP_VERSION_ID < 80300) {
     http_response_code(500);

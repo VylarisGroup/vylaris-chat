@@ -1,6 +1,6 @@
 # Änderungen
 
-## 1.19.0 – Aufräumen
+## 2.0.0 – Aufräumen
 
 * Interne Bereinigung; keine sichtbaren Änderungen im Alltag.
 
